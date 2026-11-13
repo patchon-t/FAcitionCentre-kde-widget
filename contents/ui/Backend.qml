@@ -36,6 +36,8 @@ Item {
     property bool wifiAvailable: false       // nmcli present and a wifi device exists
     property bool wifiEnabled: false
     property string wifiSsid: ""
+    property int wifiSignal: -1              // strength of the connected network, -1 = unknown
+    property bool wiredConnected: false
     property var wifiNetworks: []            // [{ ssid, signal, security, secured, inUse, saved }]
     property bool wifiScanning: false
     property string wifiBusySsid: ""
@@ -93,6 +95,67 @@ Item {
     property int sysBatteryPercent: 0
     property string sysBatteryState: ""
 
+    // ---- icon names (shared by the panel icons and the popup) ---------------
+    function wifiIconForSignal(signal) {
+        if (signal < 0) {
+            return "network-wireless-connected-100"
+        }
+        const steps = ["00", "25", "50", "75", "100"]
+        return "network-wireless-connected-" + steps[Math.max(0, Math.min(4, Math.round(signal / 25)))]
+    }
+
+    // Prefer the icon plasma-nm computes (same as the stock network applet,
+    // updated by signals); fall back to our own nmcli-based state.
+    readonly property string nmIconName: nmIcon.status === Loader.Ready ? String(nmIcon.item.iconName || "") : ""
+    readonly property bool networkIconAvailable: nmIconName !== "" || has("nmcli")
+    readonly property string networkIconName: {
+        if (nmIconName !== "") {
+            return nmIconName
+        }
+        if (airplaneMode) {
+            return "network-flightmode-on"
+        }
+        if (wiredConnected) {
+            return "network-wired-activated"
+        }
+        if (!wifiAvailable) {
+            return "network-offline"
+        }
+        if (!wifiEnabled) {
+            return "network-wireless-off"
+        }
+        return wifiSsid !== "" ? wifiIconForSignal(wifiSignal) : "network-wireless-disconnected"
+    }
+    readonly property string networkStatusText: {
+        if (airplaneMode) {
+            return "Airplane mode"
+        }
+        if (wiredConnected) {
+            return "Wired connection"
+        }
+        if (!wifiAvailable) {
+            return "Not connected"
+        }
+        if (!wifiEnabled) {
+            return "Wi-Fi off"
+        }
+        if (wifiSsid === "") {
+            return "Wi-Fi on, not connected"
+        }
+        return "Wi-Fi: " + wifiSsid + (wifiSignal >= 0 ? " (" + wifiSignal + "%)" : "")
+    }
+
+    readonly property string volumeIconName: muted || volume <= 0 ? "audio-volume-muted"
+                                           : volume < 0.34 ? "audio-volume-low"
+                                           : volume < 0.67 ? "audio-volume-medium" : "audio-volume-high"
+
+    readonly property string batteryIconName: {
+        const step = String(Math.max(0, Math.min(100, Math.round(batteryPercent / 10) * 10))).padStart(3, "0")
+        return "battery-" + step + (batteryCharging ? "-charging" : "")
+    }
+    readonly property string batteryStatusText: batteryPercent + "%"
+                                                + (batteryCharging ? " · Charging" : batteryFull ? " · Fully charged" : "")
+
     // ---- plumbing -----------------------------------------------------------
     readonly property string prelude: 'export LC_ALL=C PATH="$PATH:/usr/sbin:/sbin:/usr/lib/qt6/bin"; '
 
@@ -111,6 +174,8 @@ Item {
     Loader { id: volumeLoader; source: "VolumePlugin.qml" }
     Loader { id: nmNotifier; source: "NmNotifier.qml" }
     Loader { id: btNotifier; source: "BtNotifier.qml" }
+    // Separate loader so a plasma-nm API difference can't take the notifier down with it.
+    Loader { id: nmIcon; source: "NmIcon.qml" }
 
     Connections {
         target: nmNotifier.item
@@ -177,7 +242,8 @@ Item {
     function sectionCommand(name) {
         switch (name) {
         case "wifi":
-            return has("nmcli") ? "nmcli -t -f WIFI radio 2>/dev/null; nmcli -t -f TYPE,STATE,CONNECTION device 2>/dev/null" : ""
+            return has("nmcli") ? "nmcli -t -f WIFI radio 2>/dev/null; nmcli -t -f TYPE,STATE,CONNECTION device 2>/dev/null; "
+                                  + 'echo "--"; nmcli -t -f IN-USE,SIGNAL device wifi list --rescan no 2>/dev/null' : ""
         case "bt":
             return has("bluetoothctl") ? btctl + 'show 2>/dev/null | grep -m1 "Powered:"; echo "--"; ' + btctl + "devices Connected 2>/dev/null" : ""
         case "airplane":
@@ -282,20 +348,35 @@ Item {
     function parseSection(name, lines) {
         switch (name) {
         case "wifi": {
+            const sep = lines.indexOf("--")
+            const devices = sep >= 0 ? lines.slice(0, sep) : lines
             let hasDevice = false
+            let wired = false
             let ssid = ""
-            for (let i = 1; i < lines.length; ++i) {
-                const f = nmSplit(lines[i], 3)
+            for (let i = 1; i < devices.length; ++i) {
+                const f = nmSplit(devices[i], 3)
                 if (f[0] === "wifi") {
                     hasDevice = true
                     if (f[1] === "connected" && ssid === "") {
                         ssid = f[2]
                     }
+                } else if (f[0] === "ethernet" && f[1] === "connected") {
+                    wired = true
+                }
+            }
+            let signal = -1
+            for (const l of (sep >= 0 ? lines.slice(sep + 1) : [])) {
+                const f = nmSplit(l, 2)
+                if (f[0].trim() === "*") {
+                    signal = parseInt(f[1])
+                    break
                 }
             }
             wifiAvailable = hasDevice
-            wifiEnabled = lines.length > 0 && lines[0].trim() === "enabled"
+            wiredConnected = wired
+            wifiEnabled = devices.length > 0 && devices[0].trim() === "enabled"
             wifiSsid = wifiEnabled ? ssid : ""
+            wifiSignal = wifiSsid !== "" && !isNaN(signal) ? signal : -1
             break
         }
         case "bt": {

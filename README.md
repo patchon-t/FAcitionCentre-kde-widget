@@ -31,6 +31,24 @@ colour are followed automatically).
 | Volume | Slider, click the icon to mute, `>` picks the output device | `org.kde.plasma.private.volume` QML plugin; falls back to `wpctl` |
 | Battery (footer) | Icon, percentage, charging state; hidden when there is no battery | Plasma5Support `powermanagement` engine; falls back to `/sys/class/power_supply/BAT*` |
 
+### Panel icons
+
+Like the Windows 11 taskbar, the panel button shows **network, volume and
+battery icons** side by side (stacked in a vertical panel) with one shared
+hover highlight. Click opens the popup; scrolling over it changes the volume
+in 5 % steps. The tooltip summarises the network, volume and battery.
+
+- Network icon: taken from plasma-nm (`org.kde.plasma.networkmanagement`), the
+  same icon the stock Networks applet shows, including Wi-Fi strength, wired
+  and VPN; falls back to icons computed from `nmcli` if that module is missing.
+- Battery icon is hidden on machines without a battery; volume icon is hidden
+  when no audio backend is found.
+
+Plasma's own Networks, Audio Volume and Power and Battery icons will still be
+in the system tray. To get the Windows look, hide them: right-click the
+system tray → *Configure System Tray…* → *Entries* → set those three to
+*Disabled* (or *Always hidden*).
+
 Other behaviour:
 
 - Sub-pages slide in inside the popup (200 ms) with a back arrow; tile colours animate (150 ms).
@@ -53,7 +71,8 @@ Other behaviour:
 systemctl --user restart plasma-plasmashell
 ```
 
-Then right-click the panel → *Add Widgets…* → "Quick Settings". Remove with `./uninstall.sh`.
+Then right-click the panel → *Add Widgets…* → "Quick Settings", and drag it
+next to the clock. Add it to the panel itself, not inside the system tray. Remove with `./uninstall.sh`.
 
 ## Testing without installing
 
@@ -98,7 +117,7 @@ Names are for Debian 13 "trixie" (Plasma 6.3); check with `apt search` on other 
 - **Bluetooth** lists paired devices only; pairing opens the Bluetooth settings. Only the default adapter is controlled.
 - **Brightness** controls what PowerDevil's legacy `BrightnessControl` interface exposes (the primary display). On a desktop PC with DDC/CI monitors Plasma 6.2+ may expose it too; otherwise the row is hidden.
 - **Volume** slider tops out at 100 %; raise above that from the stock audio applet.
-- **Panel icon** is static (`configure`); it does not show Wi-Fi/volume state.
+- **Panel icons, without plasma-nm:** the fallback network icon gets its Wi-Fi strength from `nmcli`, which is only re-read on network change events and while the popup is open, so the strength bars can lag.
 - **Edit mode** has hide/show and arrow reordering; no drag and drop.
 - UI strings are English only (no i18n catalog).
 - KDE Connect is not used.

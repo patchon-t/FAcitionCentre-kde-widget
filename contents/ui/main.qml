@@ -16,16 +16,14 @@ PlasmoidItem {
     toolTipMainText: "Quick Settings"
     toolTipSubText: {
         const parts = []
-        if (sys.airplaneMode) {
-            parts.push("Airplane mode")
-        } else if (sys.wifiAvailable) {
-            parts.push(sys.wifiSsid !== "" ? "Wi-Fi: " + sys.wifiSsid : sys.wifiEnabled ? "Wi-Fi on" : "Wi-Fi off")
+        if (sys.networkIconAvailable) {
+            parts.push(sys.networkStatusText)
         }
         if (sys.volumeAvailable) {
             parts.push(sys.muted ? "Muted" : "Volume " + Math.round(sys.volume * 100) + "%")
         }
         if (sys.hasBattery) {
-            parts.push("Battery " + sys.batteryPercent + "%")
+            parts.push("Battery " + sys.batteryStatusText)
         }
         return parts.join(" · ")
     }
@@ -35,24 +33,11 @@ PlasmoidItem {
         active: root.expanded
     }
 
-    compactRepresentation: MouseArea {
-        id: compact
-
-        property bool wasExpanded: false
-
-        hoverEnabled: true
-        acceptedButtons: Qt.LeftButton
-        onPressed: wasExpanded = root.expanded
-        onClicked: root.expanded = !wasExpanded
-
-        Accessible.role: Accessible.Button
-        Accessible.name: "Quick Settings"
-
-        Kirigami.Icon {
-            anchors.fill: parent
-            source: Plasmoid.icon
-            active: compact.containsMouse
-        }
+    compactRepresentation: CompactIcons {
+        backend: sys
+        vertical: Plasmoid.formFactor === PlasmaCore.Types.Vertical
+        expanded: root.expanded
+        onExpandRequested: (expand) => root.expanded = expand
     }
 
     fullRepresentation: QuickPanel {

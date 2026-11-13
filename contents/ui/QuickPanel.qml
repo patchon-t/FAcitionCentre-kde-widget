@@ -90,7 +90,7 @@ Item {
     TileDef {
         id: wifiDef
         iconName: !backend.wifiEnabled ? "network-wireless-off"
-                : backend.wifiSsid !== "" ? "network-wireless-connected-100" : "network-wireless-disconnected"
+                : backend.wifiSsid !== "" ? backend.wifiIconForSignal(backend.wifiSignal) : "network-wireless-disconnected"
         label: backend.wifiSsid !== "" ? backend.wifiSsid : "Wi-Fi"
         tooltip: !backend.wifiEnabled ? "Wi-Fi is off. Click to turn it on"
                : backend.wifiSsid !== "" ? "Connected to " + backend.wifiSsid + ". Click to turn Wi-Fi off"
@@ -370,9 +370,7 @@ Item {
             SliderRow {
                 Layout.fillWidth: true
                 visible: panel.backend.volumeAvailable
-                iconName: panel.backend.muted || panel.backend.volume <= 0 ? "audio-volume-muted"
-                        : panel.backend.volume < 0.34 ? "audio-volume-low"
-                        : panel.backend.volume < 0.67 ? "audio-volume-medium" : "audio-volume-high"
+                iconName: panel.backend.volumeIconName
                 iconClickable: true
                 iconTooltip: panel.backend.muted ? "Unmute" : "Mute"
                 sliderTooltip: "Volume"
@@ -397,9 +395,8 @@ Item {
             Footer {
                 Layout.fillWidth: true
                 hasBattery: panel.backend.hasBattery
-                batteryPercent: panel.backend.batteryPercent
-                charging: panel.backend.batteryCharging
-                full: panel.backend.batteryFull
+                batteryIcon: panel.backend.batteryIconName
+                batteryText: panel.backend.batteryStatusText
                 editMode: panel.editMode
                 onEditClicked: panel.editMode = !panel.editMode
                 onSettingsClicked: {
