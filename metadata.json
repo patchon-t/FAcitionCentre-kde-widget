@@ -1,0 +1,17 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Id": "com.techbypatch.quicksettings",
+        "Name": "Quick Settings",
+        "Description": "Windows 11 style quick settings panel: Wi-Fi, Bluetooth, airplane mode, night light, do not disturb, brightness and volume",
+        "Icon": "configure",
+        "Category": "System Information",
+        "Version": "1.0.0",
+        "EnabledByDefault": true,
+        "License": "GPL-3.0",
+        "Website": "https://github.com/patchon-t/FAcitionCentre-kde-widget"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-NotificationArea": "true",
+    "X-Plasma-NotificationAreaCategory": "SystemServices"
+}
