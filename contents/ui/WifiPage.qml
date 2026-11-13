@@ -32,8 +32,7 @@ ColumnLayout {
         backend.connectWifi(net, password)
     }
     function signalIcon(net) {
-        const level = net.signal >= 80 ? "100" : net.signal >= 60 ? "80" : net.signal >= 40 ? "60" : net.signal >= 20 ? "40" : "20"
-        return "network-wireless-connected-" + level
+        return backend.wifiIconForSignal(net.signal)
     }
 
     // Rescan while the page is showing. Paused during password entry so the

@@ -10,19 +10,12 @@ Rectangle {
     id: footer
 
     property bool hasBattery: false
-    property int batteryPercent: 0
-    property bool charging: false
-    property bool full: false
+    property string batteryIcon
+    property string batteryText
     property bool editMode: false
 
     signal editClicked()
     signal settingsClicked()
-
-    readonly property string batteryIcon: {
-        const step = String(Math.max(0, Math.min(100, Math.round(batteryPercent / 10) * 10))).padStart(3, "0")
-        return "battery-" + step + (charging ? "-charging" : "")
-    }
-    readonly property string batteryText: batteryPercent + "%" + (charging ? " · Charging" : full ? " · Fully charged" : "")
 
     implicitHeight: layout.implicitHeight + Kirigami.Units.smallSpacing * 2
     radius: Kirigami.Units.smallSpacing * 1.5
