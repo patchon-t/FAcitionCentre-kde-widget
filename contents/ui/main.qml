@@ -1,8 +1,7 @@
 /*
- * Quick Settings: a Windows 11 style quick settings popup for Plasma 6.
+ * Quick Settings: a Windows 11 style quick settings flyout for Plasma 6.
  */
 import QtQuick
-import QtQuick.Layouts
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.kirigami as Kirigami
@@ -11,42 +10,57 @@ PlasmoidItem {
     id: root
 
     Plasmoid.icon: "configure"
-    Plasmoid.status: PlasmaCore.Types.ActiveStatus
+    Plasmoid.status: flyout.visible ? PlasmaCore.Types.AcceptingInputStatus : PlasmaCore.Types.ActiveStatus
 
-    toolTipMainText: "Quick Settings"
+    // We draw our own flyout (Flyout.qml) instead of Plasma's popup.
+    preferredRepresentation: compactRepresentation
+    fullRepresentation: Item {}
+
+    toolTipMainText: sys.networkIconAvailable ? sys.networkStatusText : "Quick Settings"
     toolTipSubText: {
         const parts = []
-        if (sys.networkIconAvailable) {
-            parts.push(sys.networkStatusText)
-        }
         if (sys.volumeAvailable) {
-            parts.push(sys.muted ? "Muted" : "Volume " + Math.round(sys.volume * 100) + "%")
+            parts.push(sys.muted ? "Speakers: muted" : "Speakers: " + Math.round(sys.volume * 100) + "%")
         }
         if (sys.hasBattery) {
-            parts.push("Battery " + sys.batteryStatusText)
+            parts.push("Battery: " + sys.batteryStatusText)
         }
-        return parts.join(" · ")
+        return parts.join("\n")
     }
+
+    // Feed the Plasma colour scheme and widget settings into the Windows theme.
+    Binding { target: WinTheme; property: "systemBackground"; value: Kirigami.Theme.backgroundColor }
+    Binding { target: WinTheme; property: "systemAccent"; value: Kirigami.Theme.highlightColor }
+    Binding { target: WinTheme; property: "mode"; value: Plasmoid.configuration.themeMode }
+    Binding { target: WinTheme; property: "useSystemAccent"; value: Plasmoid.configuration.useSystemAccent }
 
     Backend {
         id: sys
-        active: root.expanded
+        active: flyout.visible
     }
 
     compactRepresentation: CompactIcons {
         backend: sys
         vertical: Plasmoid.formFactor === PlasmaCore.Types.Vertical
-        expanded: root.expanded
-        onExpandRequested: (expand) => root.expanded = expand
+        expanded: flyout.visible && !flyout.closing
+        onExpandRequested: (expand) => expand ? flyout.openFlyout() : flyout.closeFlyout()
     }
 
-    fullRepresentation: QuickPanel {
+    Flyout {
+        id: flyout
+        visualParent: root.compactRepresentationItem
+        location: Plasmoid.location
         backend: sys
-        expanded: root.expanded
         tileOrder: Plasmoid.configuration.tileOrder
         hiddenTiles: Plasmoid.configuration.hiddenTiles
         onTileOrderEdited: (order) => Plasmoid.configuration.tileOrder = order
         onHiddenTilesEdited: (hidden) => Plasmoid.configuration.hiddenTiles = hidden
-        onCloseRequested: root.expanded = false
+    }
+
+    // Global shortcut (Configure > Keyboard Shortcuts) toggles the flyout.
+    Connections {
+        target: Plasmoid
+        ignoreUnknownSignals: true
+        function onActivated() { flyout.toggle() }
     }
 }

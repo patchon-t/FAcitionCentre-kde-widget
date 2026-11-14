@@ -21,9 +21,9 @@ MouseArea {
     readonly property bool showBattery: backend.hasBattery
 
     readonly property int thickness: vertical ? width : height
-    readonly property int iconSize: Math.max(Kirigami.Units.iconSizes.small,
-                                             Math.min(thickness - Kirigami.Units.smallSpacing * 2, Kirigami.Units.iconSizes.smallMedium))
-    readonly property int padding: Kirigami.Units.smallSpacing * 2
+    // Windows taskbar: 16 px glyphs, scaled up a little on thick panels.
+    readonly property int iconSize: Math.max(16, Math.min(24, Math.round(thickness * 0.36)))
+    readonly property int padding: 8
 
     Layout.minimumWidth: vertical ? 0 : grid.implicitWidth + padding * 2
     Layout.preferredWidth: Layout.minimumWidth
@@ -61,11 +61,11 @@ MouseArea {
     // Shared hover / open highlight behind all icons.
     Rectangle {
         anchors.fill: parent
-        anchors.margins: Math.max(1, Math.round(Kirigami.Units.smallSpacing / 2))
-        radius: Kirigami.Units.smallSpacing * 1.5
+        anchors.margins: 3
+        radius: 4
         color: Kirigami.Theme.textColor
-        opacity: compact.pressed ? 0.16 : compact.expanded ? 0.12 : compact.containsMouse ? 0.08 : 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
+        opacity: compact.pressed ? 0.05 : compact.expanded ? 0.09 : compact.containsMouse ? 0.07 : 0
+        Behavior on opacity { NumberAnimation { duration: WinTheme.fast } }
     }
 
     GridLayout {
@@ -74,36 +74,37 @@ MouseArea {
         flow: compact.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
         rows: compact.vertical ? -1 : 1
         columns: compact.vertical ? 1 : -1
-        rowSpacing: Kirigami.Units.smallSpacing * 2
-        columnSpacing: Kirigami.Units.smallSpacing * 2
+        rowSpacing: 10
+        columnSpacing: 10
 
-        Kirigami.Icon {
+        FluentIcon {
             visible: compact.showNetwork
             Layout.preferredWidth: compact.iconSize
             Layout.preferredHeight: compact.iconSize
-            source: compact.backend.networkIconName
-            fallback: "network-wireless"
+            glyph: compact.backend.networkGlyph
+            color: Kirigami.Theme.textColor
         }
-        Kirigami.Icon {
+        FluentIcon {
             visible: compact.showVolume
             Layout.preferredWidth: compact.iconSize
             Layout.preferredHeight: compact.iconSize
-            source: compact.backend.volumeIconName
-            fallback: "audio-volume-high"
+            glyph: compact.backend.volumeGlyph
+            color: Kirigami.Theme.textColor
         }
-        Kirigami.Icon {
+        FluentIcon {
             visible: compact.showBattery
-            Layout.preferredWidth: compact.iconSize
-            Layout.preferredHeight: compact.iconSize
-            source: compact.backend.batteryIconName
-            fallback: "battery"
+            Layout.preferredWidth: compact.iconSize + 4
+            Layout.preferredHeight: compact.iconSize + 4
+            glyph: compact.backend.batteryGlyph
+            color: Kirigami.Theme.textColor
         }
         // Never leave an invisible, unclickable widget in the panel.
-        Kirigami.Icon {
+        FluentIcon {
             visible: !compact.showNetwork && !compact.showVolume && !compact.showBattery
             Layout.preferredWidth: compact.iconSize
             Layout.preferredHeight: compact.iconSize
-            source: "configure"
+            glyph: "gear"
+            color: Kirigami.Theme.textColor
         }
     }
 }

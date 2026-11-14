@@ -95,36 +95,39 @@ Item {
     property int sysBatteryPercent: 0
     property string sysBatteryState: ""
 
-    // ---- icon names (shared by the panel icons and the popup) ---------------
-    function wifiIconForSignal(signal) {
+    // ---- Windows-style glyphs (contents/icons/*.svg) --------------------------
+    // Wi-Fi bars 1..4 from a 0..100 signal (-1 = unknown -> full bars).
+    function wifiGlyphFor(signal) {
         if (signal < 0) {
-            return "network-wireless-connected-100"
+            return "wifi-4"
         }
-        const steps = ["00", "25", "50", "75", "100"]
-        return "network-wireless-connected-" + steps[Math.max(0, Math.min(4, Math.round(signal / 25)))]
+        return "wifi-" + (signal >= 75 ? 4 : signal >= 50 ? 3 : signal >= 25 ? 2 : 1)
     }
 
-    // Prefer the icon plasma-nm computes (same as the stock network applet,
-    // updated by signals); fall back to our own nmcli-based state.
+    // plasma-nm's icon (signal driven, same as the stock applet). We only
+    // take the Wi-Fi strength from it; the rest of the state comes from nmcli.
     readonly property string nmIconName: nmIcon.status === Loader.Ready ? String(nmIcon.item.iconName || "") : ""
-    readonly property bool networkIconAvailable: nmIconName !== "" || has("nmcli")
-    readonly property string networkIconName: {
-        if (nmIconName !== "") {
-            return nmIconName
-        }
+    readonly property int nmSignal: {
+        const m = nmIconName.match(/wireless.*?(\d+)/)
+        return m ? parseInt(m[1]) : -1
+    }
+    readonly property int currentSignal: nmSignal >= 0 ? nmSignal : wifiSignal
+
+    readonly property bool networkIconAvailable: has("nmcli")
+    readonly property string networkGlyph: {
         if (airplaneMode) {
-            return "network-flightmode-on"
+            return "airplane"
         }
         if (wiredConnected) {
-            return "network-wired-activated"
+            return "ethernet"
         }
-        if (!wifiAvailable) {
-            return "network-offline"
+        if (wifiAvailable && wifiEnabled && wifiSsid !== "") {
+            return wifiGlyphFor(currentSignal)
         }
-        if (!wifiEnabled) {
-            return "network-wireless-off"
+        if (wifiAvailable && !wifiEnabled) {
+            return "wifi-off"
         }
-        return wifiSsid !== "" ? wifiIconForSignal(wifiSignal) : "network-wireless-disconnected"
+        return "globe-off"
     }
     readonly property string networkStatusText: {
         if (airplaneMode) {
@@ -140,21 +143,21 @@ Item {
             return "Wi-Fi off"
         }
         if (wifiSsid === "") {
-            return "Wi-Fi on, not connected"
+            return "Not connected"
         }
-        return "Wi-Fi: " + wifiSsid + (wifiSignal >= 0 ? " (" + wifiSignal + "%)" : "")
+        return wifiSsid + (currentSignal >= 0 ? " (" + currentSignal + "%)" : "")
     }
 
-    readonly property string volumeIconName: muted || volume <= 0 ? "audio-volume-muted"
-                                           : volume < 0.34 ? "audio-volume-low"
-                                           : volume < 0.67 ? "audio-volume-medium" : "audio-volume-high"
+    readonly property string volumeGlyph: muted || volume <= 0 ? "speaker-mute"
+                                        : volume < 0.34 ? "speaker-1"
+                                        : volume < 0.67 ? "speaker-2" : "speaker-3"
 
-    readonly property string batteryIconName: {
-        const step = String(Math.max(0, Math.min(100, Math.round(batteryPercent / 10) * 10))).padStart(3, "0")
-        return "battery-" + step + (batteryCharging ? "-charging" : "")
-    }
+    readonly property string batteryGlyph: "battery-" + Math.max(0, Math.min(10, Math.round(batteryPercent / 10)))
+                                           + (batteryCharging || batteryFull && pluggedIn ? "-charging" : "")
+    readonly property bool pluggedIn: batteryUsesEngine ? Boolean(pmSource.data["AC Adapter"] && pmSource.data["AC Adapter"]["Plugged in"])
+                                                         : batteryCharging
     readonly property string batteryStatusText: batteryPercent + "%"
-                                                + (batteryCharging ? " · Charging" : batteryFull ? " · Fully charged" : "")
+                                                + (batteryCharging ? ", charging" : batteryFull ? ", fully charged" : "")
 
     // ---- plumbing -----------------------------------------------------------
     readonly property string prelude: 'export LC_ALL=C PATH="$PATH:/usr/sbin:/sbin:/usr/lib/qt6/bin"; '

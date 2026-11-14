@@ -1,21 +1,17 @@
 /*
- * Icon + slider (+ optional ">" button). `value` is the backend value
- * (0..1); while the user drags, the backend value is ignored so the handle
- * doesn't fight the pointer.
+ * Windows 11 slider row: icon button, slider, optional chevron button.
  */
 import QtQuick
 import QtQuick.Layouts
-import org.kde.plasma.components as PlasmaComponents3
-import org.kde.kirigami as Kirigami
 
 RowLayout {
     id: row
 
-    property string iconName
+    property string glyph
     property real value: 0
     property bool iconClickable: false
     property string iconTooltip
-    property string sliderTooltip
+    property string sliderName
     property bool hasMore: false
     property string moreTooltip
 
@@ -23,69 +19,33 @@ RowLayout {
     signal iconClicked()
     signal moreClicked()
 
-    spacing: Kirigami.Units.smallSpacing
+    spacing: 2
+    implicitHeight: 40
 
-    PlasmaComponents3.ToolButton {
-        id: iconButton
-        icon.name: row.iconName
-        // Not clickable: keep it looking like a plain icon.
-        flat: true
-        hoverEnabled: row.iconClickable
-        down: row.iconClickable && pressed
-        activeFocusOnTab: row.iconClickable
-        onClicked: {
-            if (row.iconClickable) {
-                row.iconClicked()
-            }
-        }
-        Accessible.name: row.iconTooltip
-        PlasmaComponents3.ToolTip {
-            text: row.iconTooltip
-            visible: iconHover.hovered && text !== ""
-            delay: Kirigami.Units.toolTipDelay
-        }
-        HoverHandler { id: iconHover }
+    WinIconButton {
+        Layout.preferredWidth: 40
+        Layout.preferredHeight: 40
+        glyph: row.glyph
+        tooltip: row.iconTooltip
+        interactive: row.iconClickable   // brightness icon is just an icon
+        onClicked: row.iconClicked()
     }
-
-    PlasmaComponents3.Slider {
-        id: slider
+    WinSlider {
         Layout.fillWidth: true
-        from: 0
-        to: 1
-        stepSize: 0.01
-        onMoved: row.moved(value)
-        Accessible.name: row.sliderTooltip
-
-        Binding {
-            target: slider
-            property: "value"
-            value: row.value
-            when: !slider.pressed
-            restoreMode: Binding.RestoreNone
-        }
-        PlasmaComponents3.ToolTip {
-            text: row.sliderTooltip + ": " + Math.round(slider.value * 100) + "%"
-            visible: (slider.hovered || slider.pressed) && row.sliderTooltip !== ""
-            delay: slider.pressed ? 0 : Kirigami.Units.toolTipDelay
-        }
+        // Pull the track towards the icons (the thumb's half-width is inset).
+        Layout.leftMargin: -8
+        Layout.rightMargin: -8
+        value: row.value
+        accessibleName: row.sliderName
+        onMoved: (v) => row.moved(v)
     }
-
-    PlasmaComponents3.ToolButton {
-        id: moreButton
-        visible: row.hasMore
-        icon.name: "go-next-symbolic"
+    WinIconButton {
+        Layout.preferredWidth: 40
+        Layout.preferredHeight: 40
+        opacity: row.hasMore ? 1 : 0
+        enabled: row.hasMore
+        glyph: "chevron-right"
+        tooltip: row.moreTooltip
         onClicked: row.moreClicked()
-        Accessible.name: row.moreTooltip
-        PlasmaComponents3.ToolTip {
-            text: row.moreTooltip
-            visible: moreButton.hovered && text !== ""
-            delay: Kirigami.Units.toolTipDelay
-        }
-    }
-    // Keeps both sliders the same length when only one row has a ">" button.
-    Item {
-        visible: !row.hasMore
-        implicitWidth: iconButton.implicitWidth
-        implicitHeight: 1
     }
 }

@@ -1,42 +1,37 @@
 /*
- * Wi-Fi sub-page: available networks, click to connect / disconnect,
- * inline password prompt for secured networks without a saved profile.
+ * Wi-Fi sub-page, Windows 11 style: header with toggle, list of networks;
+ * click a network to expand it (Connect / Disconnect, security key prompt).
  */
 import QtQuick
 import QtQuick.Layouts
-import org.kde.plasma.components as PlasmaComponents3
-import org.kde.kirigami as Kirigami
 
-ColumnLayout {
+Item {
     id: page
 
     required property QtObject backend
     signal back()
+    signal openSettings()
 
-    // SSID currently showing the password prompt ("" = none).
+    readonly property int preferredHeight: 448
+
+    property string selectedSsid: ""
     property string passwordSsid: ""
 
-    spacing: Kirigami.Units.smallSpacing
-
-    function activate(net) {
-        if (backend.wifiBusySsid !== "") {
+    function connect(net) {
+        if (page.backend.wifiBusySsid !== "") {
             return
         }
-        passwordSsid = backend.connectWifi(net) ? net.ssid : ""
+        passwordSsid = page.backend.connectWifi(net) ? net.ssid : ""
     }
     function submit(net, password) {
         if (password === "") {
             return
         }
         passwordSsid = ""
-        backend.connectWifi(net, password)
-    }
-    function signalIcon(net) {
-        return backend.wifiIconForSignal(net.signal)
+        page.backend.connectWifi(net, password)
     }
 
-    // Rescan while the page is showing. Paused during password entry so the
-    // list (and the text field in it) is not rebuilt under the user.
+    // Rescan while showing; paused during password entry so the list isn't rebuilt under the user.
     Timer {
         interval: 8000
         repeat: true
@@ -45,172 +40,145 @@ ColumnLayout {
         onTriggered: page.backend.scanWifi()
     }
 
-    PageHeader {
-        Layout.fillWidth: true
-        title: "Wi-Fi"
-        onBack: page.back()
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 0
 
-        PlasmaComponents3.BusyIndicator {
-            implicitWidth: Kirigami.Units.iconSizes.smallMedium
-            implicitHeight: Kirigami.Units.iconSizes.smallMedium
-            running: page.backend.wifiScanning
-            visible: running
-        }
-        PlasmaComponents3.Switch {
-            checked: page.backend.wifiEnabled
-            enabled: !page.backend.airplaneMode
-            onToggled: page.backend.setWifi(checked)
-            Accessible.name: "Wi-Fi"
-        }
-    }
-
-    PlasmaComponents3.Label {
-        Layout.fillWidth: true
-        visible: page.backend.wifiError !== ""
-        text: page.backend.wifiError
-        textFormat: Text.PlainText
-        color: Kirigami.Theme.negativeTextColor
-        wrapMode: Text.Wrap
-        font: Kirigami.Theme.smallFont
-    }
-
-    PlasmaComponents3.ScrollView {
-        Layout.fillWidth: true
-        Layout.fillHeight: true
-
-        ListView {
-            id: list
-            clip: true
-            model: page.backend.wifiEnabled ? page.backend.wifiNetworks : []
-            boundsBehavior: Flickable.StopAtBounds
-
-            PlasmaComponents3.Label {
-                anchors.centerIn: parent
-                width: parent.width - Kirigami.Units.gridUnit * 2
-                visible: list.count === 0
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
-                opacity: 0.7
-                text: page.backend.airplaneMode ? "Airplane mode is on"
-                    : !page.backend.wifiEnabled ? "Wi-Fi is turned off"
-                    : page.backend.wifiScanning ? "Searching for networks…"
-                    : "No networks found"
+        PageHeader {
+            Layout.fillWidth: true
+            title: "Wi-Fi"
+            onBack: page.back()
+            Spinner {
+                width: 16
+                height: 16
+                running: page.backend.wifiScanning
             }
+            WinToggleSwitch {
+                checked: page.backend.wifiEnabled
+                enabled: !page.backend.airplaneMode
+                accessibleName: "Wi-Fi"
+                onToggled: page.backend.setWifi(!page.backend.wifiEnabled)
+            }
+        }
 
-            delegate: ColumnLayout {
-                id: entry
-                required property var modelData
-                readonly property bool busy: page.backend.wifiBusySsid === modelData.ssid
-                readonly property bool prompting: page.passwordSsid === modelData.ssid
+        WinText {
+            Layout.fillWidth: true
+            Layout.leftMargin: 24
+            Layout.rightMargin: 24
+            Layout.bottomMargin: 8
+            visible: page.backend.wifiError !== ""
+            text: page.backend.wifiError
+            color: WinTheme.critical
+            font.pixelSize: WinTheme.caption
+            wrapMode: Text.Wrap
+            maximumLineCount: 3
+        }
 
-                width: ListView.view.width
-                spacing: 0
+        Item {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.leftMargin: 8
+            Layout.rightMargin: 8
 
-                PlasmaComponents3.ItemDelegate {
-                    id: item
-                    Layout.fillWidth: true
-                    highlighted: entry.modelData.inUse
-                    onClicked: page.activate(entry.modelData)
-                    Accessible.name: entry.modelData.ssid
+            ListView {
+                id: list
+                anchors.fill: parent
+                clip: true
+                spacing: 2
+                boundsBehavior: Flickable.StopAtBounds
+                model: page.backend.wifiEnabled ? page.backend.wifiNetworks : []
 
-                    contentItem: RowLayout {
-                        spacing: Kirigami.Units.smallSpacing * 2
+                HoverHandler { id: listHover }
 
-                        Kirigami.Icon {
-                            implicitWidth: Kirigami.Units.iconSizes.smallMedium
-                            implicitHeight: Kirigami.Units.iconSizes.smallMedium
-                            source: page.signalIcon(entry.modelData)
-                            fallback: "network-wireless"
-                            selected: item.highlighted
-                        }
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 0
-                            PlasmaComponents3.Label {
-                                Layout.fillWidth: true
-                                text: entry.modelData.ssid
-                                textFormat: Text.PlainText
-                                elide: Text.ElideRight
-                                color: item.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
-                            }
-                            PlasmaComponents3.Label {
-                                Layout.fillWidth: true
-                                text: entry.busy ? (entry.modelData.inUse ? "Disconnecting…" : "Connecting…")
-                                    : entry.modelData.inUse ? "Connected · click to disconnect"
-                                    : (entry.modelData.saved ? "Saved" : entry.modelData.secured ? "Secured" : "Open")
-                                      + " · " + entry.modelData.signal + "%"
-                                font: Kirigami.Theme.smallFont
-                                opacity: 0.7
-                                elide: Text.ElideRight
-                                color: item.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
-                            }
-                        }
-                        PlasmaComponents3.BusyIndicator {
-                            implicitWidth: Kirigami.Units.iconSizes.smallMedium
-                            implicitHeight: Kirigami.Units.iconSizes.smallMedium
-                            running: entry.busy
-                            visible: entry.busy
-                        }
-                        Kirigami.Icon {
-                            visible: entry.modelData.secured && !entry.busy
-                            implicitWidth: Kirigami.Units.iconSizes.small
-                            implicitHeight: Kirigami.Units.iconSizes.small
-                            source: "object-locked-symbolic"
-                            selected: item.highlighted
-                        }
-                    }
-
-                    PlasmaComponents3.ToolTip {
-                        text: entry.modelData.inUse ? "Disconnect from " + entry.modelData.ssid
-                                                    : "Connect to " + entry.modelData.ssid
-                              + (entry.modelData.secured ? " (" + entry.modelData.security + ")" : "")
-                        visible: item.hovered
-                        delay: Kirigami.Units.toolTipDelay
-                    }
+                WinText {
+                    anchors.centerIn: parent
+                    width: parent.width - 48
+                    visible: list.count === 0
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 3
+                    color: WinTheme.textSecondary
+                    text: page.backend.airplaneMode ? "Airplane mode is on"
+                        : !page.backend.wifiEnabled ? "Wi-Fi is turned off"
+                        : page.backend.wifiScanning ? "Looking for networks…"
+                        : "No Wi-Fi networks found"
                 }
 
-                RowLayout {
-                    visible: entry.prompting
-                    Layout.fillWidth: true
-                    Layout.leftMargin: Kirigami.Units.largeSpacing
-                    Layout.rightMargin: Kirigami.Units.largeSpacing
-                    Layout.bottomMargin: Kirigami.Units.smallSpacing
-                    spacing: Kirigami.Units.smallSpacing
+                delegate: WinListItem {
+                    id: entry
+                    required property var modelData
+                    readonly property bool connected: modelData.inUse
+                    readonly property bool prompting: page.passwordSsid === modelData.ssid
 
-                    onVisibleChanged: {
-                        if (visible) {
-                            passwordField.text = ""
-                            passwordField.forceActiveFocus()
-                        }
+                    width: ListView.view.width
+                    glyph: page.backend.wifiGlyphFor(modelData.signal)
+                    badgeGlyph: modelData.secured ? "lock" : ""
+                    title: modelData.ssid
+                    subtitle: busy ? (connected ? "Disconnecting…" : "Connecting…")
+                            : connected ? (modelData.secured ? "Connected, secured" : "Connected")
+                            : modelData.secured ? "Secured" : "Open"
+                    busy: page.backend.wifiBusySsid === modelData.ssid
+                    expanded: page.selectedSsid === modelData.ssid
+                    tooltip: modelData.ssid + " · signal " + modelData.signal + "%" + (modelData.security !== "" ? " · " + modelData.security : "")
+                    onClicked: {
+                        page.selectedSsid = expanded ? "" : modelData.ssid
+                        page.passwordSsid = ""
                     }
 
-                    PlasmaComponents3.TextField {
-                        id: passwordField
+                    // --- expanded content ---
+                    WinText {
+                        visible: entry.prompting
+                        text: "Enter the network security key"
+                        font.pixelSize: WinTheme.caption
+                        color: WinTheme.textSecondary
+                    }
+                    WinPasswordBox {
+                        id: password
+                        visible: entry.prompting
                         Layout.fillWidth: true
-                        placeholderText: "Password"
-                        echoMode: showPassword.checked ? TextInput.Normal : TextInput.Password
-                        inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText | Qt.ImhSensitiveData
+                        placeholder: "Network security key"
                         onAccepted: page.submit(entry.modelData, text)
-                        Keys.onEscapePressed: page.passwordSsid = ""
+                        onCancelled: page.passwordSsid = ""
+                        onVisibleChanged: if (visible) { text = ""; focusInput() }
                     }
-                    PlasmaComponents3.ToolButton {
-                        id: showPassword
-                        checkable: true
-                        icon.name: checked ? "password-show-off" : "password-show-on"
-                        Accessible.name: "Show password"
-                        PlasmaComponents3.ToolTip {
-                            text: "Show password"
-                            visible: showPassword.hovered
-                            delay: Kirigami.Units.toolTipDelay
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Item { Layout.fillWidth: true }
+                        WinButton {
+                            visible: entry.prompting
+                            text: "Cancel"
+                            onClicked: page.passwordSsid = ""
                         }
-                    }
-                    PlasmaComponents3.Button {
-                        text: "Connect"
-                        enabled: passwordField.text.length >= 8 || (passwordField.text.length > 0 && entry.modelData.security.indexOf("WEP") >= 0)
-                        onClicked: page.submit(entry.modelData, passwordField.text)
+                        WinButton {
+                            visible: entry.prompting
+                            accent: true
+                            text: "Next"
+                            enabled: password.text.length >= 8 || (password.text.length > 0 && entry.modelData.security.indexOf("WEP") >= 0)
+                            onClicked: page.submit(entry.modelData, password.text)
+                        }
+                        WinButton {
+                            visible: !entry.prompting
+                            accent: !entry.connected
+                            enabled: !entry.busy
+                            text: entry.connected ? "Disconnect" : "Connect"
+                            implicitWidth: 120
+                            onClicked: page.connect(entry.modelData)
+                        }
                     }
                 }
             }
+
+            WinScrollIndicator {
+                flickable: list
+                hovered: listHover.hovered
+            }
+        }
+
+        PageFooter {
+            Layout.fillWidth: true
+            text: "More Wi-Fi settings"
+            onClicked: page.openSettings()
         }
     }
 }

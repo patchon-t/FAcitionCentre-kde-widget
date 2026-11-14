@@ -1,19 +1,15 @@
 /*
- * The popup content: tile grid, sliders, footer, and the sliding sub-pages.
+ * The Windows 11 quick settings card: tile grid, sliders, footer, and the
+ * sub-pages that slide in over it.
  */
 import QtQuick
-import QtQuick.Layouts
 import QtQuick.Controls as QQC2
-import org.kde.plasma.components as PlasmaComponents3
-import org.kde.kirigami as Kirigami
 
-Item {
+WinCard {
     id: panel
 
     required property QtObject backend
-    // Popup is open.
     property bool expanded: false
-    // From plasmoid config.
     property var tileOrder: []
     property var hiddenTiles: []
 
@@ -22,7 +18,38 @@ Item {
     signal closeRequested()
 
     property bool editMode: false
+    readonly property bool onSubPage: stack.depth > 1
 
+    function goBack() {
+        if (addMenu.open) {
+            addMenu.open = false
+        } else if (stack.depth > 1) {
+            stack.pop()
+        } else if (editMode) {
+            editMode = false
+        } else {
+            return false
+        }
+        return true
+    }
+
+    implicitWidth: WinTheme.flyoutWidth
+    implicitHeight: stack.currentItem && stack.depth > 1 ? stack.currentItem.preferredHeight : mainPage.preferredHeight
+    height: implicitHeight
+    Behavior on height {
+        enabled: panel.expanded
+        NumberAnimation { duration: WinTheme.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate }
+    }
+
+    onExpandedChanged: {
+        if (!expanded) {
+            editMode = false
+            addMenu.open = false
+            stack.pop(null, QQC2.StackView.Immediate)
+        }
+    }
+
+    // ---- tiles ----------------------------------------------------------------
     readonly property var defs: ({
         wifi: wifiDef,
         bluetooth: bluetoothDef,
@@ -31,71 +58,74 @@ Item {
         dnd: dndDef,
         project: projectDef
     })
-    readonly property var defaultOrder: ["wifi", "bluetooth", "airplane", "nightlight", "dnd", "project"]
+    readonly property var allTiles: ["wifi", "bluetooth", "airplane", "nightlight", "dnd", "project"]
 
     // Config order, minus unknown ids, plus any tile missing from it.
-    readonly property var order: {
+    function fullOrder() {
         const out = []
         for (const id of tileOrder) {
-            if (defaultOrder.indexOf(id) >= 0 && out.indexOf(id) < 0) {
+            if (allTiles.indexOf(id) >= 0 && out.indexOf(id) < 0) {
                 out.push(id)
             }
         }
-        for (const id of defaultOrder) {
+        for (const id of allTiles) {
             if (out.indexOf(id) < 0) {
                 out.push(id)
             }
         }
         return out
     }
-    readonly property var shownTiles: editMode ? order : order.filter(id => hiddenTiles.indexOf(id) < 0)
+    readonly property var hiddenList: fullOrder().filter(id => hiddenTiles.indexOf(id) >= 0)
 
-    function toggleHidden(id) {
-        const hidden = Array.from(hiddenTiles)
-        const i = hidden.indexOf(id)
-        if (i >= 0) {
-            hidden.splice(i, 1)
-        } else {
-            hidden.push(id)
+    ListModel { id: tileModel }
+
+    function modelIds() {
+        const ids = []
+        for (let i = 0; i < tileModel.count; ++i) {
+            ids.push(tileModel.get(i).tileId)
         }
-        hiddenTilesEdited(hidden)
+        return ids
     }
-    function moveTile(id, delta) {
-        const o = Array.from(order)
-        const i = o.indexOf(id)
-        const j = i + delta
-        if (i < 0 || j < 0 || j >= o.length) {
+    function rebuild() {
+        const shown = fullOrder().filter(id => hiddenTiles.indexOf(id) < 0)
+        if (JSON.stringify(shown) === JSON.stringify(modelIds())) {
             return
         }
-        o.splice(i, 1)
-        o.splice(j, 0, id)
-        tileOrderEdited(o)
-    }
-
-    onExpandedChanged: {
-        if (!expanded) {
-            editMode = false
-            stack.pop(null, QQC2.StackView.Immediate)
+        tileModel.clear()
+        for (const id of shown) {
+            tileModel.append({ tileId: id })
         }
     }
+    function commit(hidden) {
+        const shown = modelIds()
+        tileOrderEdited(shown.concat(hidden))
+        hiddenTilesEdited(hidden)
+    }
+    function unpin(id) {
+        const ids = modelIds()
+        const i = ids.indexOf(id)
+        if (i >= 0) {
+            tileModel.remove(i)
+        }
+        commit(hiddenList.concat([id]))
+    }
+    function pin(id) {
+        tileModel.append({ tileId: id })
+        commit(hiddenList.filter(h => h !== id))
+    }
+    Component.onCompleted: rebuild()
+    onTileOrderChanged: if (!dragging) rebuild()
+    onHiddenTilesChanged: if (!dragging) rebuild()
+    property bool dragging: false
 
-    Layout.minimumWidth: Kirigami.Units.gridUnit * 20
-    Layout.preferredWidth: Kirigami.Units.gridUnit * 20
-    Layout.maximumWidth: Kirigami.Units.gridUnit * 24
-    Layout.minimumHeight: mainColumn.implicitHeight
-    Layout.preferredHeight: Math.max(mainColumn.implicitHeight, Kirigami.Units.gridUnit * 21)
-    Layout.maximumHeight: Math.max(mainColumn.implicitHeight, Kirigami.Units.gridUnit * 26)
-
-    // ---- tile definitions ----------------------------------------------------
     TileDef {
         id: wifiDef
-        iconName: !backend.wifiEnabled ? "network-wireless-off"
-                : backend.wifiSsid !== "" ? backend.wifiIconForSignal(backend.wifiSignal) : "network-wireless-disconnected"
+        glyph: "wifi-4"
         label: backend.wifiSsid !== "" ? backend.wifiSsid : "Wi-Fi"
-        tooltip: !backend.wifiEnabled ? "Wi-Fi is off. Click to turn it on"
-               : backend.wifiSsid !== "" ? "Connected to " + backend.wifiSsid + ". Click to turn Wi-Fi off"
-               : "Wi-Fi is on, not connected. Click to turn it off"
-        moreTooltip: "Show available Wi-Fi networks"
+        tooltip: !backend.wifiEnabled ? "Wi-Fi is off"
+               : backend.wifiSsid !== "" ? "Connected to " + backend.wifiSsid
+               : "Wi-Fi is on, not connected"
+        moreTooltip: "Manage Wi-Fi connections"
         checked: backend.wifiEnabled
         hasMore: true
         available: backend.wifiAvailable
@@ -108,13 +138,12 @@ Item {
     TileDef {
         id: bluetoothDef
         readonly property string deviceName: backend.btConnected.length > 0 ? backend.btConnected[0].name : ""
-        iconName: !backend.btEnabled ? "network-bluetooth-inactive"
-                : deviceName !== "" ? "network-bluetooth-activated" : "network-bluetooth"
+        glyph: "bluetooth"
         label: deviceName !== "" ? deviceName : "Bluetooth"
-        tooltip: !backend.btEnabled ? "Bluetooth is off. Click to turn it on"
-               : deviceName !== "" ? "Connected to " + backend.btConnected.map(d => d.name).join(", ") + ". Click to turn Bluetooth off"
-               : "Bluetooth is on, no device connected. Click to turn it off"
-        moreTooltip: "Show paired Bluetooth devices"
+        tooltip: !backend.btEnabled ? "Bluetooth is off"
+               : deviceName !== "" ? "Connected to " + backend.btConnected.map(d => d.name).join(", ")
+               : "Bluetooth is on, not connected"
+        moreTooltip: "Manage Bluetooth devices"
         checked: backend.btEnabled
         hasMore: true
         available: backend.btAvailable
@@ -126,10 +155,9 @@ Item {
     }
     TileDef {
         id: airplaneDef
-        iconName: backend.airplaneMode ? "network-flightmode-on" : "network-flightmode-off"
+        glyph: "airplane"
         label: "Airplane mode"
-        tooltip: backend.airplaneMode ? "Airplane mode is on: all radios are off. Click to turn radios back on"
-                                      : "Turn off Wi-Fi, Bluetooth and other radios"
+        tooltip: backend.airplaneMode ? "Airplane mode is on" : "Airplane mode is off"
         checked: backend.airplaneMode
         available: backend.airplaneAvailable
         unavailableReason: backend.probed ? "Airplane mode needs rfkill or nmcli; neither is installed" : ""
@@ -137,10 +165,9 @@ Item {
     }
     TileDef {
         id: nightLightDef
-        iconName: backend.nightLight ? "redshift-status-on" : "redshift-status-off"
+        glyph: "night-light"
         label: "Night light"
-        tooltip: backend.nightLight ? "Night light is enabled. Click to turn it off"
-                                    : "Use warmer colours to reduce eye strain"
+        tooltip: backend.nightLight ? "Night light is on" : "Night light is off"
         checked: backend.nightLight
         available: backend.nightLightAvailable
         unavailableReason: !backend.probed ? "" : backend.qdbus === "" ? "Night light needs qdbus6, which is not installed"
@@ -149,10 +176,9 @@ Item {
     }
     TileDef {
         id: dndDef
-        iconName: backend.dnd ? "notifications-disabled" : "notifications"
-        label: "Do not disturb"
-        tooltip: backend.dnd ? "Do not disturb is on: notifications are silenced. Click to turn it off"
-                             : "Silence notifications"
+        glyph: "moon"
+        label: "Focus assist"
+        tooltip: backend.dnd ? "Focus assist is on: notifications are silenced" : "Focus assist is off"
         checked: backend.dnd
         available: backend.dndAvailable
         unavailableReason: "The Plasma notification module (org.kde.notificationmanager) could not be loaded"
@@ -160,9 +186,9 @@ Item {
     }
     TileDef {
         id: projectDef
-        iconName: "video-display-symbolic"
+        glyph: "project"
         label: "Project"
-        tooltip: "Choose how to use connected displays (same as Meta+P)"
+        tooltip: "Choose a display mode"
         available: backend.projectAvailable
         unavailableReason: backend.probed ? "Project needs qdbus6, which is not installed" : ""
         onToggled: {
@@ -171,37 +197,44 @@ Item {
         }
     }
 
-    // ---- pages ----------------------------------------------------------------
+    // ---- footer strip (drawn by the card so sliding pages stay inside rounded corners)
+    Rectangle {
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 1 }
+        height: WinTheme.footerHeight
+        radius: WinTheme.cardRadius - 1
+        color: WinTheme.footer
+        Rectangle {
+            anchors { left: parent.left; right: parent.right; top: parent.top }
+            height: parent.radius
+            color: parent.color
+        }
+    }
+
+    // ---- pages -------------------------------------------------------------------
     QQC2.StackView {
         id: stack
         anchors.fill: parent
+        anchors.margins: 1
         clip: true
         initialItem: mainPage
+        background: null
 
-        readonly property int slide: 200
+        readonly property real shift: width * 0.3
         pushEnter: Transition {
-            ParallelAnimation {
-                NumberAnimation { property: "x"; from: stack.width; to: 0; duration: stack.slide; easing.type: Easing.OutCubic }
-                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: stack.slide }
-            }
+            NumberAnimation { property: "x"; from: stack.shift; to: 0; duration: WinTheme.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate }
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: WinTheme.normal }
         }
         pushExit: Transition {
-            ParallelAnimation {
-                NumberAnimation { property: "x"; from: 0; to: -stack.width / 3; duration: stack.slide; easing.type: Easing.OutCubic }
-                NumberAnimation { property: "opacity"; from: 1; to: 0; duration: stack.slide }
-            }
+            NumberAnimation { property: "x"; from: 0; to: -stack.shift; duration: WinTheme.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate }
+            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: WinTheme.fast }
         }
         popEnter: Transition {
-            ParallelAnimation {
-                NumberAnimation { property: "x"; from: -stack.width / 3; to: 0; duration: stack.slide; easing.type: Easing.OutCubic }
-                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: stack.slide }
-            }
+            NumberAnimation { property: "x"; from: -stack.shift; to: 0; duration: WinTheme.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate }
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: WinTheme.normal }
         }
         popExit: Transition {
-            ParallelAnimation {
-                NumberAnimation { property: "x"; from: 0; to: stack.width; duration: stack.slide; easing.type: Easing.OutCubic }
-                NumberAnimation { property: "opacity"; from: 1; to: 0; duration: stack.slide }
-            }
+            NumberAnimation { property: "x"; from: 0; to: stack.shift; duration: WinTheme.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate }
+            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: WinTheme.fast }
         }
     }
 
@@ -210,6 +243,7 @@ Item {
         WifiPage {
             backend: panel.backend
             onBack: stack.pop()
+            onOpenSettings: { panel.closeRequested(); panel.backend.openKcm("kcm_networkmanagement") }
         }
     }
     Component {
@@ -217,6 +251,7 @@ Item {
         BluetoothPage {
             backend: panel.backend
             onBack: stack.pop()
+            onOpenSettings: { panel.closeRequested(); panel.backend.openKcm("kcm_bluetooth") }
         }
     }
     Component {
@@ -224,184 +259,212 @@ Item {
         AudioPage {
             backend: panel.backend
             onBack: stack.pop()
+            onOpenSettings: { panel.closeRequested(); panel.backend.openKcm("kcm_pulseaudio") }
         }
     }
 
     Item {
         id: mainPage
 
-        ColumnLayout {
-            id: mainColumn
-            anchors.fill: parent
-            spacing: Kirigami.Units.largeSpacing
+        readonly property int preferredHeight: 2 + WinTheme.padding + grid.height + 10 + sliders.height + 18 + WinTheme.footerHeight
 
-            PlasmaComponents3.Label {
-                Layout.fillWidth: true
-                visible: panel.editMode
-                text: "Click a tile to show or hide it. Use the arrows to reorder."
-                font: Kirigami.Theme.smallFont
-                opacity: 0.7
-                wrapMode: Text.Wrap
-                horizontalAlignment: Text.AlignHCenter
-            }
+        GridView {
+            id: grid
+            x: WinTheme.padding
+            y: WinTheme.padding
+            width: 3 * cellWidth
+            height: Math.ceil(count / 3) * cellHeight
+            cellWidth: WinTheme.tileWidth + WinTheme.tileGap
+            cellHeight: WinTheme.tileRowHeight
+            interactive: false
+            model: tileModel
 
-            GridLayout {
-                id: grid
-                Layout.fillWidth: true
-                Layout.topMargin: Kirigami.Units.smallSpacing
-                columns: 3
-                columnSpacing: Kirigami.Units.largeSpacing
-                rowSpacing: Kirigami.Units.largeSpacing
+            Behavior on height { NumberAnimation { duration: WinTheme.normal; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate } }
+            displaced: Transition { NumberAnimation { properties: "x,y"; duration: WinTheme.normal; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate } }
+            move: Transition { NumberAnimation { properties: "x,y"; duration: WinTheme.normal; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate } }
+            add: Transition { NumberAnimation { property: "scale"; from: 0.8; to: 1; duration: WinTheme.normal; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate } NumberAnimation { property: "opacity"; from: 0; to: 1; duration: WinTheme.normal } }
+            remove: Transition { NumberAnimation { property: "scale"; to: 0.8; duration: WinTheme.fast } NumberAnimation { property: "opacity"; to: 0; duration: WinTheme.fast } }
 
-                Repeater {
-                    model: panel.shownTiles
+            delegate: DropArea {
+                id: cell
+                required property string tileId
+                required property int index
+                readonly property TileDef def: panel.defs[tileId]
+                readonly property bool usable: def.available && def.enabled
 
-                    delegate: Item {
-                        id: cell
-                        required property string modelData
-                        required property int index
-                        readonly property TileDef def: panel.defs[modelData]
-                        readonly property bool hidden: panel.hiddenTiles.indexOf(modelData) >= 0
-                        readonly property bool usable: def.available && def.enabled
+                width: grid.cellWidth
+                height: grid.cellHeight
+                keys: ["qs-tile"]
+                onEntered: (drag) => {
+                    const from = drag.source.cellIndex
+                    if (from !== undefined && from !== index) {
+                        tileModel.move(from, index, 1)
+                    }
+                }
 
-                        // Equal preferred widths + fillWidth = three equal columns.
-                        Layout.fillWidth: true
-                        Layout.preferredWidth: 1
-                        implicitHeight: tile.implicitHeight
+                Item {
+                    id: dragItem
+                    property int cellIndex: cell.index
+                    width: WinTheme.tileWidth
+                    height: WinTheme.tileRowHeight
+                    anchors { left: cell.left; top: cell.top }
 
-                        ToggleTile {
-                            id: tile
-                            anchors.fill: parent
-                            iconName: cell.def.iconName
-                            label: cell.def.label
-                            tooltip: cell.def.tooltip
-                            moreTooltip: cell.def.moreTooltip
-                            checked: cell.def.checked && !panel.editMode
-                            hasMore: cell.def.hasMore && !panel.editMode
-                            enabled: cell.usable && !panel.editMode
-                            opacity: panel.editMode ? (cell.hidden ? 0.3 : 1) : (enabled ? 1 : 0.4)
-                            onToggled: cell.def.toggled()
-                            onMoreClicked: cell.def.moreClicked()
+                    Drag.active: dragArea.drag.active
+                    Drag.source: dragItem
+                    Drag.keys: ["qs-tile"]
+                    Drag.hotSpot.x: width / 2
+                    Drag.hotSpot.y: WinTheme.tileHeight / 2
+
+                    states: State {
+                        when: dragArea.drag.active
+                        ParentChange { target: dragItem; parent: grid }
+                        AnchorChanges { target: dragItem; anchors.left: undefined; anchors.top: undefined }
+                        PropertyChanges { target: dragItem; z: 10; scale: 1.06; opacity: 0.92 }
+                    }
+
+                    MouseArea {
+                        id: dragArea
+                        anchors.fill: parent
+                        enabled: panel.editMode
+                        cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                        drag.target: dragItem
+                        onPressed: panel.dragging = true
+                        onReleased: {
+                            dragItem.Drag.drop()
+                            panel.dragging = false
+                            panel.commit(panel.hiddenList)
                         }
+                        onCanceled: panel.dragging = false
+                    }
 
-                        // A disabled tile gets no hover events; explain here why it is disabled.
-                        HoverHandler {
-                            id: cellHover
-                            enabled: !cell.usable && !panel.editMode
-                        }
-                        PlasmaComponents3.ToolTip {
-                            text: !cell.def.available ? cell.def.unavailableReason : cell.def.disabledReason
-                            visible: cellHover.hovered && text !== ""
-                            delay: Kirigami.Units.toolTipDelay
-                        }
+                    ToggleTile {
+                        anchors.fill: parent
+                        glyph: cell.def.glyph
+                        label: cell.def.label
+                        tooltip: cell.def.tooltip
+                        moreTooltip: cell.def.moreTooltip
+                        checked: cell.def.checked
+                        hasMore: cell.def.hasMore
+                        editMode: panel.editMode
+                        enabled: cell.usable || panel.editMode
+                        onToggled: cell.def.toggled()
+                        onMoreClicked: cell.def.moreClicked()
+                        onUnpinClicked: panel.unpin(cell.tileId)
+                    }
 
-                        // Edit mode: click = show/hide, arrows = reorder.
-                        MouseArea {
-                            id: editArea
-                            anchors.fill: parent
-                            visible: panel.editMode
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: panel.toggleHidden(cell.modelData)
-
-                            PlasmaComponents3.ToolTip {
-                                text: cell.hidden ? "Hidden. Click to show this tile" : "Click to hide this tile"
-                                visible: editArea.containsMouse && !moveLeft.hovered && !moveRight.hovered
-                                delay: Kirigami.Units.toolTipDelay
-                            }
-                            Kirigami.Icon {
-                                anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: Kirigami.Units.smallSpacing }
-                                width: Kirigami.Units.iconSizes.small
-                                height: width
-                                visible: cell.hidden
-                                source: "view-hidden-symbolic"
-                            }
-                            PlasmaComponents3.ToolButton {
-                                id: moveLeft
-                                anchors { left: parent.left; top: parent.top }
-                                visible: cell.index > 0
-                                icon.name: "arrow-left-symbolic"
-                                onClicked: panel.moveTile(cell.modelData, -1)
-                                Accessible.name: "Move earlier"
-                                PlasmaComponents3.ToolTip {
-                                    text: "Move earlier"
-                                    visible: moveLeft.hovered
-                                    delay: Kirigami.Units.toolTipDelay
-                                }
-                            }
-                            PlasmaComponents3.ToolButton {
-                                id: moveRight
-                                anchors { right: parent.right; top: parent.top }
-                                visible: cell.index < panel.order.length - 1
-                                icon.name: "arrow-right-symbolic"
-                                onClicked: panel.moveTile(cell.modelData, 1)
-                                Accessible.name: "Move later"
-                                PlasmaComponents3.ToolTip {
-                                    text: "Move later"
-                                    visible: moveRight.hovered
-                                    delay: Kirigami.Units.toolTipDelay
-                                }
-                            }
-                        }
+                    // A disabled tile gets no hover; explain why it is disabled.
+                    HoverHandler {
+                        id: cellHover
+                        enabled: !cell.usable && !panel.editMode
+                    }
+                    WinToolTip {
+                        text: !cell.def.available ? cell.def.unavailableReason : cell.def.disabledReason
+                        shown: cellHover.hovered
                     }
                 }
             }
+        }
 
-            PlasmaComponents3.Label {
-                Layout.fillWidth: true
-                visible: panel.shownTiles.length === 0
-                text: "All tiles are hidden. Use the edit button below to show them again."
-                opacity: 0.7
-                wrapMode: Text.Wrap
-                horizontalAlignment: Text.AlignHCenter
-            }
-
-            Item { Layout.fillHeight: true }
+        Column {
+            id: sliders
+            x: 10
+            y: grid.y + grid.height + 10
+            width: parent.width - 20
+            spacing: 20
 
             SliderRow {
-                Layout.fillWidth: true
+                width: parent.width
                 visible: panel.backend.brightnessAvailable
-                iconName: "video-display-brightness"
-                iconTooltip: "Screen brightness"
-                sliderTooltip: "Brightness"
+                glyph: "sun"
+                iconTooltip: "Brightness"
+                sliderName: "Brightness"
                 value: panel.backend.brightness
                 onMoved: (value) => panel.backend.setBrightness(value)
             }
             SliderRow {
-                Layout.fillWidth: true
+                width: parent.width
                 visible: panel.backend.volumeAvailable
-                iconName: panel.backend.volumeIconName
+                glyph: panel.backend.volumeGlyph
                 iconClickable: true
                 iconTooltip: panel.backend.muted ? "Unmute" : "Mute"
-                sliderTooltip: "Volume"
+                sliderName: "Volume"
                 value: panel.backend.volume
                 hasMore: true
-                moreTooltip: "Choose a sound output device"
+                moreTooltip: "Select a sound output"
                 onMoved: (value) => panel.backend.setVolume(value)
                 onIconClicked: panel.backend.toggleMute()
                 onMoreClicked: stack.push(audioPage)
             }
-            PlasmaComponents3.Label {
-                Layout.fillWidth: true
-                visible: panel.backend.probed && !panel.backend.volumeAvailable
-                text: "No audio backend found (needs plasma-pa or wpctl)"
-                font: Kirigami.Theme.smallFont
-                opacity: 0.7
-                horizontalAlignment: Text.AlignHCenter
+        }
+
+        Footer {
+            id: footer
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            hasBattery: panel.backend.hasBattery
+            batteryGlyph: panel.backend.batteryGlyph
+            batteryPercent: panel.backend.batteryPercent
+            batteryText: panel.backend.batteryStatusText
+            editMode: panel.editMode
+            canAdd: panel.hiddenList.length > 0
+            onEditClicked: panel.editMode = true
+            onDoneClicked: { addMenu.open = false; panel.editMode = false }
+            onAddClicked: (anchor) => addMenu.open = !addMenu.open
+            onSettingsClicked: {
+                panel.closeRequested()
+                panel.backend.openSystemSettings()
             }
+        }
 
-            Item { Layout.fillHeight: true }
+        // ---- "Add" menu (edit mode) ----------------------------------------------
+        MouseArea {   // click outside closes it
+            anchors.fill: parent
+            visible: addMenu.open
+            onClicked: addMenu.open = false
+        }
+        WinCard {
+            id: addMenu
+            property bool open: false
+            visible: opacity > 0
+            opacity: open ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: WinTheme.fast } }
+            anchors { right: parent.right; rightMargin: 12; bottom: footer.top; bottomMargin: -4 }
+            transform: Translate {
+                y: addMenu.open ? 0 : 8
+                Behavior on y { NumberAnimation { duration: WinTheme.normal; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate } }
+            }
+            width: 200
+            height: menuColumn.implicitHeight + 8
+            onVisibleChanged: if (panel.hiddenList.length === 0) open = false
 
-            Footer {
-                Layout.fillWidth: true
-                hasBattery: panel.backend.hasBattery
-                batteryIcon: panel.backend.batteryIconName
-                batteryText: panel.backend.batteryStatusText
-                editMode: panel.editMode
-                onEditClicked: panel.editMode = !panel.editMode
-                onSettingsClicked: {
-                    panel.closeRequested()
-                    panel.backend.openSystemSettings()
+            Column {
+                id: menuColumn
+                x: 4
+                y: 4
+                width: parent.width - 8
+                Repeater {
+                    model: panel.hiddenList
+                    delegate: Rectangle {
+                        required property string modelData
+                        width: menuColumn.width
+                        height: 36
+                        radius: WinTheme.controlRadius
+                        color: menuArea.pressed ? WinTheme.subtlePressed : menuArea.containsMouse ? WinTheme.subtleHover : "transparent"
+                        Row {
+                            anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                            spacing: 12
+                            FluentIcon { anchors.verticalCenter: parent.verticalCenter; glyph: panel.defs[modelData].glyph }
+                            WinText { anchors.verticalCenter: parent.verticalCenter; text: panel.defs[modelData].label }
+                        }
+                        MouseArea {
+                            id: menuArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: {
+                                panel.pin(modelData)
+                                if (panel.hiddenList.length <= 1) addMenu.open = false
+                            }
+                        }
+                    }
                 }
             }
         }
