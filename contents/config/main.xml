@@ -13,5 +13,13 @@
       <label>Tiles hidden from the grid</label>
       <default></default>
     </entry>
+    <entry name="themeMode" type="Int">
+      <label>0 = follow the Plasma colour scheme, 1 = always dark, 2 = always light</label>
+      <default>0</default>
+    </entry>
+    <entry name="useSystemAccent" type="Bool">
+      <label>Use the Plasma accent colour instead of the Windows default blue</label>
+      <default>false</default>
+    </entry>
   </group>
 </kcfg>

@@ -5,7 +5,7 @@
 import QtQuick
 
 QtObject {
-    property string iconName
+    property string glyph
     property string label
     property string tooltip
     property string moreTooltip

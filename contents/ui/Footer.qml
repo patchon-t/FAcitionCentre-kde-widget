@@ -1,84 +1,109 @@
 /*
- * Footer strip: battery on the left, edit + settings on the right.
+ * Main page footer (content only; the card draws the darker strip):
+ * battery on the left; edit + settings, or Add + Done in edit mode.
  */
 import QtQuick
 import QtQuick.Layouts
-import org.kde.plasma.components as PlasmaComponents3
-import org.kde.kirigami as Kirigami
 
-Rectangle {
+Item {
     id: footer
 
     property bool hasBattery: false
-    property string batteryIcon
+    property string batteryGlyph
+    property int batteryPercent: 0
     property string batteryText
     property bool editMode: false
+    property bool canAdd: false
 
     signal editClicked()
+    signal doneClicked()
+    signal addClicked(Item anchor)
     signal settingsClicked()
 
-    implicitHeight: layout.implicitHeight + Kirigami.Units.smallSpacing * 2
-    radius: Kirigami.Units.smallSpacing * 1.5
-    // Slightly darker than the popup, derived from the theme.
-    color: Qt.darker(Kirigami.Theme.backgroundColor, 1.12)
-    border.width: 1
-    border.color: Qt.alpha(Kirigami.Theme.textColor, 0.08)
+    implicitHeight: WinTheme.footerHeight
 
-    RowLayout {
-        id: layout
-        anchors {
-            fill: parent
-            leftMargin: Kirigami.Units.largeSpacing
-            rightMargin: Kirigami.Units.smallSpacing
-            topMargin: Kirigami.Units.smallSpacing
-            bottomMargin: Kirigami.Units.smallSpacing
-        }
-        spacing: Kirigami.Units.smallSpacing
-
-        Kirigami.Icon {
-            visible: footer.hasBattery
-            implicitWidth: Kirigami.Units.iconSizes.smallMedium
-            implicitHeight: Kirigami.Units.iconSizes.smallMedium
-            source: footer.batteryIcon
-            fallback: "battery"
-        }
-        PlasmaComponents3.Label {
-            visible: footer.hasBattery
-            text: footer.batteryText
-            textFormat: Text.PlainText
-            HoverHandler { id: batteryHover }
-            PlasmaComponents3.ToolTip {
-                text: "Battery at " + footer.batteryText
-                visible: batteryHover.hovered
-                delay: Kirigami.Units.toolTipDelay
+    // Battery
+    Rectangle {
+        id: battery
+        visible: footer.hasBattery
+        anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+        width: batteryRow.implicitWidth + 16
+        height: 32
+        radius: WinTheme.controlRadius
+        color: batteryArea.pressed ? WinTheme.subtlePressed : batteryArea.containsMouse ? WinTheme.subtleHover : "transparent"
+        Behavior on color { ColorAnimation { duration: WinTheme.fast } }
+        Row {
+            id: batteryRow
+            anchors.centerIn: parent
+            spacing: 8
+            FluentIcon {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 20
+                height: 20
+                glyph: footer.batteryGlyph
+            }
+            WinText {
+                anchors.verticalCenter: parent.verticalCenter
+                text: footer.batteryPercent + "%"
+                font.pixelSize: WinTheme.caption
             }
         }
+        MouseArea {
+            id: batteryArea
+            anchors.fill: parent
+            hoverEnabled: true
+        }
+        WinToolTip {
+            text: "Battery: " + footer.batteryText
+            shown: batteryArea.containsMouse
+        }
+    }
 
-        Item { Layout.fillWidth: true }
+    // Normal: edit + settings
+    Row {
+        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+        spacing: 4
+        visible: opacity > 0
+        opacity: footer.editMode ? 0 : 1
+        Behavior on opacity { NumberAnimation { duration: WinTheme.fast } }
 
-        PlasmaComponents3.ToolButton {
-            id: editButton
-            icon.name: footer.editMode ? "dialog-ok-apply-symbolic" : "document-edit-symbolic"
-            text: footer.editMode ? "Done" : ""
-            display: footer.editMode ? PlasmaComponents3.AbstractButton.TextBesideIcon : PlasmaComponents3.AbstractButton.IconOnly
+        WinIconButton {
+            width: 32
+            height: 32
+            glyph: "pencil"
+            tooltip: "Edit quick settings"
             onClicked: footer.editClicked()
-            Accessible.name: footer.editMode ? "Finish editing" : "Edit quick settings"
-            PlasmaComponents3.ToolTip {
-                text: editButton.Accessible.name
-                visible: editButton.hovered
-                delay: Kirigami.Units.toolTipDelay
-            }
         }
-        PlasmaComponents3.ToolButton {
-            id: settingsButton
-            icon.name: "configure-symbolic"
+        WinIconButton {
+            width: 32
+            height: 32
+            glyph: "gear"
+            tooltip: "All settings"
             onClicked: footer.settingsClicked()
-            Accessible.name: "Open System Settings"
-            PlasmaComponents3.ToolTip {
-                text: settingsButton.Accessible.name
-                visible: settingsButton.hovered
-                delay: Kirigami.Units.toolTipDelay
-            }
+        }
+    }
+
+    // Edit mode: Add + Done
+    Row {
+        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+        spacing: 8
+        visible: opacity > 0
+        opacity: footer.editMode ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: WinTheme.fast } }
+
+        WinButton {
+            id: addButton
+            text: "Add"
+            glyph: "plus"
+            implicitWidth: 80
+            enabled: footer.canAdd
+            onClicked: footer.addClicked(addButton)
+        }
+        WinButton {
+            text: "Done"
+            accent: true
+            implicitWidth: 80
+            onClicked: footer.doneClicked()
         }
     }
 }

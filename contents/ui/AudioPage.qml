@@ -1,18 +1,17 @@
 /*
- * Audio sub-page: pick the default output device.
+ * Sound output sub-page, Windows 11 style: pick the default output device.
  */
 import QtQuick
 import QtQuick.Layouts
-import org.kde.plasma.components as PlasmaComponents3
-import org.kde.kirigami as Kirigami
 
-ColumnLayout {
+Item {
     id: page
 
     required property QtObject backend
     signal back()
+    signal openSettings()
 
-    spacing: Kirigami.Units.smallSpacing
+    readonly property int preferredHeight: Math.max(304, Math.min(448, 56 + 16 + list.count * 54 + WinTheme.footerHeight))
 
     // Only needed for the wpctl fallback; the QML plugin pushes changes itself.
     Timer {
@@ -23,71 +22,64 @@ ColumnLayout {
         onTriggered: page.backend.refreshSinks()
     }
 
-    PageHeader {
-        Layout.fillWidth: true
-        title: "Sound output"
-        onBack: page.back()
+    function deviceGlyph(name) {
+        return /head|bud|ear|airpod/i.test(String(name)) ? "headphones" : "speaker-device"
     }
 
-    PlasmaComponents3.ScrollView {
-        Layout.fillWidth: true
-        Layout.fillHeight: true
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 0
 
-        ListView {
-            id: list
-            clip: true
-            model: page.backend.sinks
-            boundsBehavior: Flickable.StopAtBounds
+        PageHeader {
+            Layout.fillWidth: true
+            title: "Sound output"
+            onBack: page.back()
+        }
 
-            PlasmaComponents3.Label {
-                anchors.centerIn: parent
-                visible: list.count === 0
-                opacity: 0.7
-                text: "No output devices found"
-            }
+        Item {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.leftMargin: 8
+            Layout.rightMargin: 8
 
-            delegate: PlasmaComponents3.ItemDelegate {
-                id: item
-                required property var modelData
+            ListView {
+                id: list
+                anchors.fill: parent
+                clip: true
+                spacing: 2
+                boundsBehavior: Flickable.StopAtBounds
+                model: page.backend.sinks
 
-                width: ListView.view.width
-                highlighted: modelData.isDefault
-                onClicked: page.backend.setDefaultSink(modelData)
-                Accessible.name: modelData.name
+                HoverHandler { id: listHover }
 
-                contentItem: RowLayout {
-                    spacing: Kirigami.Units.smallSpacing * 2
-
-                    Kirigami.Icon {
-                        implicitWidth: Kirigami.Units.iconSizes.smallMedium
-                        implicitHeight: Kirigami.Units.iconSizes.smallMedium
-                        source: "audio-speakers-symbolic"
-                        fallback: "audio-card"
-                        selected: item.highlighted
-                    }
-                    PlasmaComponents3.Label {
-                        Layout.fillWidth: true
-                        text: item.modelData.name
-                        textFormat: Text.PlainText
-                        elide: Text.ElideRight
-                        color: item.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
-                    }
-                    Kirigami.Icon {
-                        visible: item.modelData.isDefault
-                        implicitWidth: Kirigami.Units.iconSizes.small
-                        implicitHeight: Kirigami.Units.iconSizes.small
-                        source: "checkmark-symbolic"
-                        fallback: "dialog-ok"
-                        selected: item.highlighted
-                    }
+                WinText {
+                    anchors.centerIn: parent
+                    visible: list.count === 0
+                    color: WinTheme.textSecondary
+                    text: "No output devices found"
                 }
 
-                PlasmaComponents3.ToolTip {
-                    text: item.modelData.isDefault ? item.modelData.name + " (current output)" : "Switch output to " + item.modelData.name
-                    visible: item.hovered
-                    delay: Kirigami.Units.toolTipDelay
+                delegate: WinListItem {
+                    required property var modelData
+                    width: ListView.view.width
+                    glyph: page.deviceGlyph(modelData.name)
+                    title: modelData.name
+                    selected: modelData.isDefault
+                    tooltip: modelData.isDefault ? modelData.name + " (current output)" : "Switch output to " + modelData.name
+                    onClicked: page.backend.setDefaultSink(modelData)
                 }
             }
+
+            WinScrollIndicator {
+                flickable: list
+                hovered: listHover.hovered
+            }
+        }
+
+        PageFooter {
+            Layout.fillWidth: true
+            text: "More volume settings"
+            onClicked: page.openSettings()
         }
     }
 }
