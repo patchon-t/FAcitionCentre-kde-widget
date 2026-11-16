@@ -1,4 +1,5 @@
 # Types of this package (needed so WinTheme works as a singleton).
+AccessibilityPage 1.0 AccessibilityPage.qml
 AudioPage 1.0 AudioPage.qml
 Backend 1.0 Backend.qml
 BluetoothPage 1.0 BluetoothPage.qml
@@ -16,6 +17,8 @@ NmIcon 1.0 NmIcon.qml
 NmNotifier 1.0 NmNotifier.qml
 PageFooter 1.0 PageFooter.qml
 PageHeader 1.0 PageHeader.qml
+Pager 1.0 Pager.qml
+ProjectPage 1.0 ProjectPage.qml
 QuickPanel 1.0 QuickPanel.qml
 SliderRow 1.0 SliderRow.qml
 Spinner 1.0 Spinner.qml
@@ -25,9 +28,11 @@ VolumePlugin 1.0 VolumePlugin.qml
 WifiPage 1.0 WifiPage.qml
 WinButton 1.0 WinButton.qml
 WinCard 1.0 WinCard.qml
+WinCheckBox 1.0 WinCheckBox.qml
 WinIconButton 1.0 WinIconButton.qml
 WinListItem 1.0 WinListItem.qml
 WinPasswordBox 1.0 WinPasswordBox.qml
+WinProgressBar 1.0 WinProgressBar.qml
 WinScrollIndicator 1.0 WinScrollIndicator.qml
 WinSlider 1.0 WinSlider.qml
 WinText 1.0 WinText.qml

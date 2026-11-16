@@ -102,6 +102,28 @@ icons["phone"] = svg('<rect x="5.5" y="2" width="9" height="16" rx="1.8"/><path 
 icons["speaker-device"] = svg('<rect x="4.5" y="2.5" width="11" height="15" rx="1.8"/><circle cx="10" cy="12" r="2.6"/><circle cx="10" cy="6.2" r="0.6" fill="#000"/>')
 icons["device"] = svg('<rect x="2.5" y="4" width="15" height="12" rx="2"/><path d="M8 7.5l4 3-2 1.6V7l2 1.6-4 3"/>')
 
+# --- Windows 11 24H2 additions ---
+icons["arrow-left"] = svg('<path d="M16 10H4.5M9.5 4.5L4 10l5.5 5.5"/>')
+icons["energy-saver"] = svg('<rect x="2.5" y="6" width="13" height="8" rx="1.8"/><rect x="16.2" y="8.3" width="1.4" height="3.4" rx="0.5" fill="#000" stroke="none"/>'
+                            '<path d="M6 12.2c0-2.6 2.2-4.2 5.5-4.4-.2 3.2-1.9 4.9-4.4 4.6M6 12.2l2.2-1.9"/>')
+icons["accessibility"] = svg('<circle cx="10" cy="3.6" r="1.4"/><path d="M3.5 6.8c2.2.8 4.3 1.2 6.5 1.2s4.3-.4 6.5-1.2"/>'
+                             '<path d="M10 8v4M10 12l-3 5.2M10 12l3 5.2"/>')
+icons["hotspot"] = svg('<circle cx="10" cy="10" r="1.3" fill="#000" stroke="none"/>' + arc(10, 10, 4, -50, 50) + arc(10, 10, 4, 130, 230)
+                       + arc(10, 10, 7.2, -50, 50) + arc(10, 10, 7.2, 130, 230))
+icons["bell"] = svg('<path d="M5.5 13.5V9a4.5 4.5 0 0 1 9 0v4.5l1.3 1.5H4.2z"/><path d="M8.3 17a1.8 1.8 0 0 0 3.4 0"/>')
+icons["bell-off"] = svg('<path d="M5.5 13.5V9c0-.9.3-1.8.7-2.5M7.9 5.1A4.5 4.5 0 0 1 14.5 9v4.5l1.3 1.5H4.2"/><path d="M8.3 17a1.8 1.8 0 0 0 3.4 0"/><path d="M3 3l14 14"/>')
+icons["magnifier"] = svg('<circle cx="8.5" cy="8.5" r="5.5"/><path d="M12.6 12.6L17 17M6.2 8.5h4.6M8.5 6.2v4.6"/>')
+icons["narrator"] = svg('<rect x="2.5" y="4" width="10" height="9" rx="1.5"/><path d="M5 7.5h5M5 10h3"/>' + arc(12.5, 10, 3.5, -40, 40) + arc(12.5, 10, 6, -40, 40))
+icons["color-filter"] = svg('<path d="M10 2.8c3.5 3.4 5.5 6.2 5.5 8.7a5.5 5.5 0 0 1-11 0c0-2.5 2-5.3 5.5-8.7z"/><path d="M10 5.5v11.2" /><path d="M10 9.5h3.5M10 12.5h4.2"/>')
+icons["sound-output"] = svg('<path d="M2.5 5h7.5M13.5 5h4M2.5 10h2M8 10h1.2"/><circle cx="11.8" cy="5" r="1.7"/><circle cx="6.2" cy="10" r="1.7"/>'
+                            '<path d="M10.5 12.8h1.8l2.4-2v7.4l-2.4-2h-1.8z"/>' + arc(14.7, 14.5, 2.6, -45, 45))
+icons["info"] = svg('<circle cx="10" cy="10" r="7"/><path d="M10 9v4.5"/><circle cx="10" cy="6.6" r="0.5" fill="#000"/>')
+icons["refresh"] = svg(arc(10, 10, 6, 30, 330) + '<path d="M15.6 3.6v3.6H12"/>')
+icons["display-pc"] = svg('<rect x="2.5" y="4" width="10" height="7.5" rx="1.2"/><path d="M7.5 11.5v2.5M5.5 14.5h4"/><rect x="13.5" y="6.5" width="4.5" height="4" rx="0.8" stroke-dasharray="1.2 1.4"/>')
+icons["display-duplicate"] = svg('<rect x="2" y="5" width="7.5" height="6" rx="1"/><rect x="10.5" y="5" width="7.5" height="6" rx="1"/><path d="M4 7.5h3.5M12.5 7.5h3.5"/><path d="M5.75 11v2.5M14.25 11v2.5"/>')
+icons["display-extend"] = svg('<rect x="2" y="5" width="7.5" height="6" rx="1"/><rect x="10.5" y="5" width="7.5" height="6" rx="1"/><path d="M5 8h10M13 6.5l2 1.5-2 1.5"/><path d="M5.75 11v2.5M14.25 11v2.5"/>')
+icons["display-second"] = svg('<rect x="2" y="6.5" width="4.5" height="4" rx="0.8" stroke-dasharray="1.2 1.4"/><rect x="7.5" y="4" width="10" height="7.5" rx="1.2"/><path d="M12.5 11.5v2.5M10.5 14.5h4"/>')
+
 os.makedirs(OUT, exist_ok=True)
 for name, data in icons.items():
     with open(os.path.join(OUT, name + ".svg"), "w") as f:

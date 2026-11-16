@@ -1,6 +1,9 @@
 /*
- * Wi-Fi sub-page, Windows 11 style: header with toggle, list of networks;
- * click a network to expand it (Connect / Disconnect, security key prompt).
+ * Wi-Fi sub-page, Windows 11 24H2 style: header with toggle and scan
+ * progress, networks list; click a network to expand it:
+ *   connected  -> (i) Properties + Disconnect
+ *   other      -> [x] Connect automatically + Connect
+ *   needs key  -> Enter the password, Next / Cancel
  */
 import QtQuick
 import QtQuick.Layouts
@@ -16,19 +19,31 @@ Item {
 
     property string selectedSsid: ""
     property string passwordSsid: ""
+    property bool autoConnect: true
 
     function connect(net) {
         if (page.backend.wifiBusySsid !== "") {
             return
         }
-        passwordSsid = page.backend.connectWifi(net) ? net.ssid : ""
+        passwordSsid = page.backend.connectWifi(net, undefined, autoConnect) ? net.ssid : ""
     }
     function submit(net, password) {
         if (password === "") {
             return
         }
         passwordSsid = ""
-        page.backend.connectWifi(net, password)
+        page.backend.connectWifi(net, password, autoConnect)
+    }
+    function status(net, busy) {
+        if (busy) {
+            return net.inUse ? "Disconnecting" : "Connecting"
+        }
+        if (net.inUse) {
+            const c = page.backend.connectivity
+            const base = (c === "limited" || c === "none" || c === "portal") ? "No internet" : "Connected"
+            return base + (net.secured ? ", secured" : "")
+        }
+        return net.secured ? "Secured" : "Open"
     }
 
     // Rescan while showing; paused during password entry so the list isn't rebuilt under the user.
@@ -47,12 +62,8 @@ Item {
         PageHeader {
             Layout.fillWidth: true
             title: "Wi-Fi"
+            busy: page.backend.wifiScanning
             onBack: page.back()
-            Spinner {
-                width: 16
-                height: 16
-                running: page.backend.wifiScanning
-            }
             WinToggleSwitch {
                 checked: page.backend.wifiEnabled
                 enabled: !page.backend.airplaneMode
@@ -65,7 +76,8 @@ Item {
             Layout.fillWidth: true
             Layout.leftMargin: 24
             Layout.rightMargin: 24
-            Layout.bottomMargin: 8
+            Layout.topMargin: 4
+            Layout.bottomMargin: 4
             visible: page.backend.wifiError !== ""
             text: page.backend.wifiError
             color: WinTheme.critical
@@ -77,8 +89,9 @@ Item {
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: 4
+            Layout.rightMargin: 4
+            Layout.topMargin: 4
 
             ListView {
                 id: list
@@ -100,8 +113,7 @@ Item {
                     color: WinTheme.textSecondary
                     text: page.backend.airplaneMode ? "Airplane mode is on"
                         : !page.backend.wifiEnabled ? "Wi-Fi is turned off"
-                        : page.backend.wifiScanning ? "Looking for networks…"
-                        : "No Wi-Fi networks found"
+                        : page.backend.wifiScanning ? "" : "No Wi-Fi networks found"
                 }
 
                 delegate: WinListItem {
@@ -114,55 +126,67 @@ Item {
                     glyph: page.backend.wifiGlyphFor(modelData.signal)
                     badgeGlyph: modelData.secured ? "lock" : ""
                     title: modelData.ssid
-                    subtitle: busy ? (connected ? "Disconnecting…" : "Connecting…")
-                            : connected ? (modelData.secured ? "Connected, secured" : "Connected")
-                            : modelData.secured ? "Secured" : "Open"
+                    subtitle: (connected || expanded || busy) ? page.status(modelData, busy) : ""
                     busy: page.backend.wifiBusySsid === modelData.ssid
                     expanded: page.selectedSsid === modelData.ssid
-                    tooltip: modelData.ssid + " · signal " + modelData.signal + "%" + (modelData.security !== "" ? " · " + modelData.security : "")
+                    showInfo: connected
+                    tooltip: modelData.ssid + "\nSignal " + modelData.signal + "%" + (modelData.security !== "" ? "\n" + modelData.security : "")
+                    onInfoClicked: page.openSettings()
                     onClicked: {
                         page.selectedSsid = expanded ? "" : modelData.ssid
                         page.passwordSsid = ""
+                        page.autoConnect = true
                     }
 
-                    // --- expanded content ---
+                    // --- expanded: password entry ---
                     WinText {
                         visible: entry.prompting
-                        text: "Enter the network security key"
-                        font.pixelSize: WinTheme.caption
-                        color: WinTheme.textSecondary
+                        text: "Enter the password"
                     }
                     WinPasswordBox {
                         id: password
                         visible: entry.prompting
                         Layout.fillWidth: true
-                        placeholder: "Network security key"
+                        placeholder: ""
                         onAccepted: page.submit(entry.modelData, text)
                         onCancelled: page.passwordSsid = ""
                         onVisibleChanged: if (visible) { text = ""; focusInput() }
                     }
                     RowLayout {
+                        visible: entry.prompting
                         Layout.fillWidth: true
+                        Layout.topMargin: 4
                         spacing: 8
-                        Item { Layout.fillWidth: true }
                         WinButton {
-                            visible: entry.prompting
-                            text: "Cancel"
-                            onClicked: page.passwordSsid = ""
-                        }
-                        WinButton {
-                            visible: entry.prompting
+                            Layout.fillWidth: true
                             accent: true
                             text: "Next"
                             enabled: password.text.length >= 8 || (password.text.length > 0 && entry.modelData.security.indexOf("WEP") >= 0)
                             onClicked: page.submit(entry.modelData, password.text)
                         }
                         WinButton {
-                            visible: !entry.prompting
+                            Layout.fillWidth: true
+                            text: "Cancel"
+                            onClicked: page.passwordSsid = ""
+                        }
+                    }
+
+                    // --- expanded: connect / disconnect ---
+                    WinCheckBox {
+                        visible: !entry.prompting && !entry.connected
+                        text: "Connect automatically"
+                        checked: page.autoConnect
+                        onToggled: page.autoConnect = !page.autoConnect
+                    }
+                    RowLayout {
+                        visible: !entry.prompting
+                        Layout.fillWidth: true
+                        Item { Layout.fillWidth: true }
+                        WinButton {
+                            Layout.preferredWidth: entry.connected ? 148 : 150
                             accent: !entry.connected
                             enabled: !entry.busy
                             text: entry.connected ? "Disconnect" : "Connect"
-                            implicitWidth: 120
                             onClicked: page.connect(entry.modelData)
                         }
                     }
@@ -179,6 +203,14 @@ Item {
             Layout.fillWidth: true
             text: "More Wi-Fi settings"
             onClicked: page.openSettings()
+            WinIconButton {
+                width: 32
+                height: 32
+                glyph: "refresh"
+                tooltip: "Refresh"
+                enabled: page.backend.wifiEnabled && !page.backend.wifiScanning
+                onClicked: page.backend.scanWifi()
+            }
         }
     }
 }

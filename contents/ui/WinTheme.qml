@@ -25,7 +25,7 @@ QtObject {
     // ---- accent --------------------------------------------------------------
     readonly property color accent: useSystemAccent
         ? (dark ? Qt.tint(systemAccent, Qt.rgba(1, 1, 1, 0.35)) : Qt.darker(systemAccent, 1.15))
-        : (dark ? "#4cc2ff" : "#005fb8")
+        : (dark ? "#60cdff" : "#005fb8")
     readonly property color accentHover: a(accent, 0.9)
     readonly property color accentPressed: a(accent, 0.8)
     readonly property color textOnAccent: luminance(accent) > 0.55 ? black : white

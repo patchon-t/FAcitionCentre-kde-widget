@@ -11,6 +11,8 @@ QtObject {
     property string moreTooltip
     property bool checked: false
     property bool hasMore: false
+    // Whole tile opens a page (icon + chevron, no toggle), like Accessibility / Project.
+    property bool navigate: false
     // Backend exists on this system. If false the tile is disabled and
     // `unavailableReason` is shown as its tooltip.
     property bool available: true

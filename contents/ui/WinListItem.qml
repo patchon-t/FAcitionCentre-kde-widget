@@ -17,6 +17,10 @@ Rectangle {
     property bool selected: false
     property bool busy: false
     property string tooltip
+    property string trailingText          // e.g. Bluetooth battery "69%"
+    property string trailingGlyph
+    property bool showInfo: false         // (i) button on the expanded item
+    signal infoClicked()
     default property alias expandedContent: extra.data
 
     signal clicked()
@@ -38,14 +42,15 @@ Rectangle {
     Keys.onReturnPressed: item.clicked()
     Keys.onSpacePressed: item.clicked()
 
-    Rectangle {   // selection pill
-        visible: item.selected
+    Rectangle {   // selection / expanded pill
+        visible: item.selected || item.expanded
         x: 0
         width: 3
-        height: 16
+        height: item.expanded ? Math.max(16, item.height - 24) : 16
         radius: 1.5
-        y: (head.height - height) / 2
+        y: item.expanded ? 12 : (head.height - height) / 2
         color: WinTheme.accent
+        Behavior on height { NumberAnimation { duration: WinTheme.normal; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate } }
     }
 
     Item {
@@ -76,7 +81,7 @@ Rectangle {
             glyph: item.badgeGlyph
         }
         Column {
-            anchors { left: icon.right; leftMargin: 16; right: spin.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+            anchors { left: icon.right; leftMargin: 16; right: trailing.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
             WinText {
                 width: parent.width
                 text: item.title
@@ -89,11 +94,39 @@ Rectangle {
                 color: WinTheme.textSecondary
             }
         }
-        Spinner {
-            id: spin
-            anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-            running: item.busy
-            width: running ? 16 : 0
+        Row {
+            id: trailing
+            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+            spacing: 6
+            WinText {
+                visible: item.trailingText !== ""
+                anchors.verticalCenter: parent.verticalCenter
+                text: item.trailingText
+                font.pixelSize: WinTheme.caption
+                color: WinTheme.textSecondary
+            }
+            FluentIcon {
+                visible: item.trailingGlyph !== ""
+                anchors.verticalCenter: parent.verticalCenter
+                width: 20
+                height: 20
+                glyph: item.trailingGlyph
+                color: WinTheme.textSecondary
+            }
+            Spinner {
+                anchors.verticalCenter: parent.verticalCenter
+                running: item.busy
+                width: running ? 16 : 0
+            }
+            WinIconButton {
+                visible: item.showInfo && item.expanded
+                anchors.verticalCenter: parent.verticalCenter
+                width: 32
+                height: 32
+                glyph: "info"
+                tooltip: "Properties"
+                onClicked: item.infoClicked()
+            }
         }
         WinToolTip {
             text: item.tooltip
