@@ -24,9 +24,6 @@ Item {
         if (/speaker|soundbar|jbl|boom|音响|音响/.test(n)) return "speaker-device"
         return "device"
     }
-    function batteryGlyph(p) {
-        return "battery-" + Math.max(0, Math.min(10, Math.round(p / 10)))
-    }
 
     Timer {
         interval: 4000
@@ -113,7 +110,7 @@ Item {
                     subtitle: busy ? (modelData.connected ? "Disconnecting" : "Connecting")
                             : modelData.connected ? "Connected" : "Not connected"
                     trailingText: modelData.battery >= 0 ? modelData.battery + "%" : ""
-                    trailingGlyph: modelData.battery >= 0 ? page.batteryGlyph(modelData.battery) : ""
+                    trailingBattery: modelData.battery
                     busy: page.backend.btBusyMac === modelData.mac
                     expanded: page.selectedMac === modelData.mac
                     tooltip: modelData.name + "\n" + modelData.mac

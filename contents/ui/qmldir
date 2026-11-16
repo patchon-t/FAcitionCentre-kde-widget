@@ -2,6 +2,7 @@
 AccessibilityPage 1.0 AccessibilityPage.qml
 AudioPage 1.0 AudioPage.qml
 Backend 1.0 Backend.qml
+BatteryGlyph 1.0 BatteryGlyph.qml
 BluetoothPage 1.0 BluetoothPage.qml
 BtNotifier 1.0 BtNotifier.qml
 CompactIcons 1.0 CompactIcons.qml

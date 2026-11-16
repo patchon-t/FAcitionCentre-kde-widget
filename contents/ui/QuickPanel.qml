@@ -476,7 +476,7 @@ WinCard {
             id: footer
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
             hasBattery: panel.backend.hasBattery
-            batteryGlyph: panel.backend.batteryGlyph
+            batteryPlug: panel.backend.batteryShowsPlug
             batteryPercent: panel.backend.batteryPercent
             batteryText: panel.backend.batteryStatusText
             editMode: panel.editMode

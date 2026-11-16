@@ -65,7 +65,10 @@ in 5 % steps. The tooltip summarises the network, volume and battery.
 
 - Network icon: Wi-Fi bars (strength from plasma-nm, `org.kde.plasma.networkmanagement`,
   or `nmcli`), wired, airplane, Wi-Fi off, or globe when not connected.
-- Battery icon is hidden on machines without a battery; volume icon is hidden
+- Battery: Windows 11 style wide battery glyph with the fill showing the
+  charge (red at 10 % and below), a plug next to it while on AC, and the
+  percentage beside it (turn the percentage off in *Configure Quick
+  Settings…*). Hidden on machines without a battery; volume icon is hidden
   when no audio backend is found.
 
 Plasma's own Networks, Audio Volume and Power and Battery icons will still be

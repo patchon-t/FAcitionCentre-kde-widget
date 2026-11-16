@@ -69,22 +69,8 @@ def gear():
     return svg(f'<path d="{d}"/><circle cx="10" cy="10" r="2.4"/>')
 icons["gear"] = gear()
 
-# Batteries: 0..10 tenths, plus charging variant (plug on the left, like Windows).
-def battery(t, charging):
-    x0 = 6.2 if charging else 2.2
-    w = 17.2 - x0 - 1.6
-    b = f'<rect x="{x0}" y="6" width="{w:.2f}" height="8" rx="1.8"/>'
-    b += f'<rect x="{x0 + w + 0.6:.2f}" y="8.3" width="1.4" height="3.4" rx="0.5" fill="#000" stroke="none"/>'
-    fw = (w - 3.0) * t / 10
-    if fw > 0.05:
-        b += f'<rect x="{x0 + 1.5:.2f}" y="7.5" width="{fw:.2f}" height="5" rx="0.7" fill="#000" stroke="none"/>'
-    if charging:
-        b += '<path d="M2.6 8.4h2.2v3.2H2.6zM0.9 9.2h1.7M0.9 10.8h1.7"/>'
-    return svg(b)
-for t in range(11):
-    icons[f"battery-{t}"] = battery(t, False)
-    icons[f"battery-{t}-charging"] = battery(t, True)
-
+# Batteries are drawn natively (contents/ui/BatteryGlyph.qml), not as square icons.
+icons["plug"] = svg('<path d="M2 10h3.5"/><rect x="5.5" y="6" width="7" height="8" rx="1.8"/><path d="M12.5 8.2h4M12.5 11.8h4"/>')
 icons["lock"] = svg('<rect x="4.5" y="8.5" width="11" height="8" rx="1.5"/><path d="M7 8.5V6.5a3 3 0 0 1 6 0v2"/>')
 icons["check"] = svg('<path d="M4.5 10.5l3.6 3.6L15.6 6"/>')
 icons["plus"] = svg('<path d="M10 4v12M4 10h12"/>')
