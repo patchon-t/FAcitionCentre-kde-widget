@@ -18,7 +18,7 @@ Rectangle {
     property bool busy: false
     property string tooltip
     property string trailingText          // e.g. Bluetooth battery "69%"
-    property string trailingGlyph
+    property int trailingBattery: -1      // device battery level, -1 = none
     property bool showInfo: false         // (i) button on the expanded item
     signal infoClicked()
     default property alias expandedContent: extra.data
@@ -105,12 +105,11 @@ Rectangle {
                 font.pixelSize: WinTheme.caption
                 color: WinTheme.textSecondary
             }
-            FluentIcon {
-                visible: item.trailingGlyph !== ""
+            BatteryGlyph {
+                visible: item.trailingBattery >= 0
                 anchors.verticalCenter: parent.verticalCenter
-                width: 20
-                height: 20
-                glyph: item.trailingGlyph
+                bodyHeight: 9
+                percent: item.trailingBattery
                 color: WinTheme.textSecondary
             }
             Spinner {

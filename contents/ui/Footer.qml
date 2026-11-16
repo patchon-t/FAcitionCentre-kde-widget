@@ -9,7 +9,7 @@ Item {
     id: footer
 
     property bool hasBattery: false
-    property string batteryGlyph
+    property bool batteryPlug: false
     property int batteryPercent: 0
     property string batteryText
     property bool editMode: false
@@ -36,11 +36,11 @@ Item {
             id: batteryRow
             anchors.centerIn: parent
             spacing: 8
-            FluentIcon {
+            BatteryGlyph {
                 anchors.verticalCenter: parent.verticalCenter
-                width: 20
-                height: 20
-                glyph: footer.batteryGlyph
+                bodyHeight: 10
+                percent: footer.batteryPercent
+                charging: footer.batteryPlug
             }
             WinText {
                 anchors.verticalCenter: parent.verticalCenter

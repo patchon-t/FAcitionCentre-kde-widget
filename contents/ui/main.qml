@@ -43,6 +43,7 @@ PlasmoidItem {
         backend: sys
         vertical: Plasmoid.formFactor === PlasmaCore.Types.Vertical
         expanded: flyout.visible && !flyout.closing
+        showBatteryPercent: Plasmoid.configuration.showBatteryPercent
         onExpandRequested: (expand) => expand ? flyout.openFlyout() : flyout.closeFlyout()
     }
 

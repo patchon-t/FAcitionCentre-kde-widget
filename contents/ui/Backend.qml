@@ -183,8 +183,8 @@ Item {
                                         : volume < 0.34 ? "speaker-1"
                                         : volume < 0.67 ? "speaker-2" : "speaker-3"
 
-    readonly property string batteryGlyph: "battery-" + Math.max(0, Math.min(10, Math.round(batteryPercent / 10)))
-                                           + (batteryCharging || batteryFull && pluggedIn ? "-charging" : "")
+    // Plug shown next to the battery while on AC, like Windows.
+    readonly property bool batteryShowsPlug: pluggedIn || batteryCharging
     readonly property bool pluggedIn: batteryUsesEngine ? Boolean(pmSource.data["AC Adapter"] && pmSource.data["AC Adapter"]["Plugged in"])
                                                          : batteryCharging
     readonly property string batteryStatusText: batteryPercent + "%"

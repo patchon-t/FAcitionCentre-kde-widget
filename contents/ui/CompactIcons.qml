@@ -19,6 +19,7 @@ MouseArea {
     readonly property bool showNetwork: backend.networkIconAvailable
     readonly property bool showVolume: backend.volumeAvailable
     readonly property bool showBattery: backend.hasBattery
+    property bool showBatteryPercent: true
 
     readonly property int thickness: vertical ? width : height
     // Windows taskbar: 16 px glyphs, scaled up a little on thick panels.
@@ -91,12 +92,26 @@ MouseArea {
             glyph: compact.backend.volumeGlyph
             color: Kirigami.Theme.textColor
         }
-        FluentIcon {
+        // Windows 11: wide battery outline, then "37%" at the same height (horizontal panels).
+        Row {
             visible: compact.showBattery
-            Layout.preferredWidth: compact.iconSize + 4
-            Layout.preferredHeight: compact.iconSize + 4
-            glyph: compact.backend.batteryGlyph
-            color: Kirigami.Theme.textColor
+            spacing: 5
+            Layout.alignment: Qt.AlignCenter
+            BatteryGlyph {
+                anchors.verticalCenter: parent.verticalCenter
+                bodyHeight: Math.round(compact.iconSize * 0.62)
+                percent: compact.backend.batteryPercent
+                charging: compact.backend.batteryShowsPlug
+                color: Kirigami.Theme.textColor
+            }
+            Text {
+                visible: compact.showBatteryPercent && !compact.vertical
+                anchors.verticalCenter: parent.verticalCenter
+                text: compact.backend.batteryPercent + "%"
+                color: Kirigami.Theme.textColor
+                font.family: WinTheme.fontFamily
+                font.pixelSize: Math.round(compact.iconSize * 0.8)
+            }
         }
         // Never leave an invisible, unclickable widget in the panel.
         FluentIcon {

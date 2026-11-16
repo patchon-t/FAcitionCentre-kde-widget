@@ -7,6 +7,7 @@ import org.kde.kcmutils as KCM
 KCM.SimpleKCM {
     property alias cfg_themeMode: themeCombo.currentIndex
     property alias cfg_useSystemAccent: accentCheck.checked
+    property alias cfg_showBatteryPercent: percentCheck.checked
 
     Kirigami.FormLayout {
         QQC2.ComboBox {
@@ -18,6 +19,11 @@ KCM.SimpleKCM {
             id: accentCheck
             Kirigami.FormData.label: "Accent colour:"
             text: "Use the Plasma accent colour instead of Windows blue"
+        }
+        QQC2.CheckBox {
+            id: percentCheck
+            Kirigami.FormData.label: "Panel:"
+            text: "Show battery percentage"
         }
     }
 }
