@@ -38,7 +38,7 @@ WinCard {
     height: implicitHeight
     Behavior on height {
         enabled: panel.expanded
-        NumberAnimation { duration: WinTheme.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate }
+        NumberAnimation { duration: WinTheme.normal; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate }
     }
 
     onExpandedChanged: {
@@ -46,6 +46,7 @@ WinCard {
             editMode = false
             addMenu.open = false
             stack.pop(null, QQC2.StackView.Immediate)
+            tilePage = 0
         }
     }
 
@@ -54,11 +55,14 @@ WinCard {
         wifi: wifiDef,
         bluetooth: bluetoothDef,
         airplane: airplaneDef,
+        energysaver: energySaverDef,
         nightlight: nightLightDef,
-        dnd: dndDef,
-        project: projectDef
+        accessibility: accessibilityDef,
+        hotspot: hotspotDef,
+        project: projectDef,
+        dnd: dndDef
     })
-    readonly property var allTiles: ["wifi", "bluetooth", "airplane", "nightlight", "dnd", "project"]
+    readonly property var allTiles: ["wifi", "bluetooth", "airplane", "energysaver", "nightlight", "accessibility", "hotspot", "project", "dnd"]
 
     // Config order, minus unknown ids, plus any tile missing from it.
     function fullOrder() {
@@ -118,6 +122,11 @@ WinCard {
     onHiddenTilesChanged: if (!dragging) rebuild()
     property bool dragging: false
 
+    // Tile pages (six tiles each)
+    property int tilePage: 0
+    readonly property int tilePages: Math.max(1, Math.ceil(tileModel.count / 6))
+    onTilePagesChanged: if (tilePage >= tilePages) tilePage = tilePages - 1
+
     TileDef {
         id: wifiDef
         glyph: "wifi-4"
@@ -175,26 +184,56 @@ WinCard {
         onToggled: backend.setNightLight(!backend.nightLight)
     }
     TileDef {
-        id: dndDef
-        glyph: "moon"
-        label: "Focus assist"
-        tooltip: backend.dnd ? "Focus assist is on: notifications are silenced" : "Focus assist is off"
-        checked: backend.dnd
-        available: backend.dndAvailable
-        unavailableReason: "The Plasma notification module (org.kde.notificationmanager) could not be loaded"
-        onToggled: backend.setDnd(!backend.dnd)
+        id: energySaverDef
+        glyph: "energy-saver"
+        label: "Energy saver"
+        tooltip: backend.energySaver ? "Energy saver is on (power profile: power-saver)" : "Energy saver is off (power profile: " + backend.powerProfile + ")"
+        checked: backend.energySaver
+        available: backend.energySaverAvailable
+        unavailableReason: backend.probed ? "Energy saver needs power-profiles-daemon (powerprofilesctl)" : ""
+        onToggled: backend.setEnergySaver(!backend.energySaver)
+    }
+    TileDef {
+        id: accessibilityDef
+        glyph: "accessibility"
+        label: "Accessibility"
+        tooltip: "Accessibility"
+        navigate: true
+        onMoreClicked: stack.push(accessibilityPage)
+    }
+    TileDef {
+        id: hotspotDef
+        glyph: "hotspot"
+        label: "Mobile hotspot"
+        tooltip: backend.hotspotError !== "" ? backend.hotspotError
+               : backend.hotspotOn ? "Sharing this device's internet\nNetwork name: " + backend.hotspotSsid + (backend.hotspotPassword !== "" ? "\nPassword: " + backend.hotspotPassword : "")
+               : "Share this device's internet over Wi-Fi"
+        checked: backend.hotspotOn
+        available: backend.hotspotAvailable
+        unavailableReason: !backend.probed ? "" : backend.has("nmcli") ? "No Wi-Fi adapter found" : "Mobile hotspot needs nmcli (network-manager)"
+        enabled: !backend.airplaneMode && !backend.hotspotBusy
+        disabledReason: backend.hotspotBusy ? "Working…" : "Mobile hotspot is unavailable while airplane mode is on"
+        onToggled: backend.setHotspot(!backend.hotspotOn)
     }
     TileDef {
         id: projectDef
         glyph: "project"
         label: "Project"
-        tooltip: "Choose a display mode"
+        tooltip: "Project"
+        navigate: true
         available: backend.projectAvailable
         unavailableReason: backend.probed ? "Project needs qdbus6, which is not installed" : ""
-        onToggled: {
-            panel.closeRequested()
-            backend.project()
-        }
+        onMoreClicked: stack.push(projectPage)
+    }
+    TileDef {
+        id: dndDef
+        glyph: backend.dnd ? "bell-off" : "bell"
+        label: "Do not disturb"
+        tooltip: backend.dnd ? "Do not disturb is on: notifications are silenced" : "Do not disturb is off"
+        checked: backend.dnd
+        available: backend.dndAvailable
+        unavailableReason: "The Plasma notification module (org.kde.notificationmanager) could not be loaded"
+        onToggled: backend.setDnd(!backend.dnd)
     }
 
     // ---- footer strip (drawn by the card so sliding pages stay inside rounded corners)
@@ -219,23 +258,11 @@ WinCard {
         initialItem: mainPage
         background: null
 
-        readonly property real shift: width * 0.3
-        pushEnter: Transition {
-            NumberAnimation { property: "x"; from: stack.shift; to: 0; duration: WinTheme.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate }
-            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: WinTheme.normal }
-        }
-        pushExit: Transition {
-            NumberAnimation { property: "x"; from: 0; to: -stack.shift; duration: WinTheme.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate }
-            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: WinTheme.fast }
-        }
-        popEnter: Transition {
-            NumberAnimation { property: "x"; from: -stack.shift; to: 0; duration: WinTheme.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate }
-            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: WinTheme.normal }
-        }
-        popExit: Transition {
-            NumberAnimation { property: "x"; from: 0; to: stack.shift; duration: WinTheme.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate }
-            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: WinTheme.fast }
-        }
+        // Windows 24H2: quick cross-fade while the card resizes.
+        pushEnter: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: WinTheme.normal; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate } }
+        pushExit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: WinTheme.fast } }
+        popEnter: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: WinTheme.normal; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate } }
+        popExit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: WinTheme.fast } }
     }
 
     Component {
@@ -255,6 +282,22 @@ WinCard {
         }
     }
     Component {
+        id: accessibilityPage
+        AccessibilityPage {
+            backend: panel.backend
+            onBack: stack.pop()
+            onOpenSettings: { panel.closeRequested(); panel.backend.openKcm("kcm_access") }
+        }
+    }
+    Component {
+        id: projectPage
+        ProjectPage {
+            backend: panel.backend
+            onBack: stack.pop()
+            onOpenSettings: { panel.closeRequested(); panel.backend.openKcm("kcm_kscreen") }
+        }
+    }
+    Component {
         id: audioPage
         AudioPage {
             backend: panel.backend
@@ -266,14 +309,21 @@ WinCard {
     Item {
         id: mainPage
 
-        readonly property int preferredHeight: 2 + WinTheme.padding + grid.height + 10 + sliders.height + 18 + WinTheme.footerHeight
+        // Geometry measured from the Windows 11 24H2 flyout: tiles from y 24, divider at the
+        // bottom of the tile pages, slider centres 39 and 91 px below it, footer 14 px lower.
+        readonly property int preferredHeight: dividerY + 1 + 18 + sliders.height + 14 + WinTheme.footerHeight
+        readonly property int dividerY: grid.y + grid.height - 3
 
         GridView {
             id: grid
             x: WinTheme.padding
             y: WinTheme.padding
             width: 3 * cellWidth
-            height: Math.ceil(count / 3) * cellHeight
+            // Two rows per page; more tiles go on further pages (page dots on the right).
+            height: Math.min(2, Math.ceil(count / 3)) * cellHeight
+            clip: true
+            contentY: panel.tilePage * height
+            Behavior on contentY { NumberAnimation { duration: WinTheme.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate } }
             cellWidth: WinTheme.tileWidth + WinTheme.tileGap
             cellHeight: WinTheme.tileRowHeight
             interactive: false
@@ -284,6 +334,13 @@ WinCard {
             move: Transition { NumberAnimation { properties: "x,y"; duration: WinTheme.normal; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate } }
             add: Transition { NumberAnimation { property: "scale"; from: 0.8; to: 1; duration: WinTheme.normal; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate } NumberAnimation { property: "opacity"; from: 0; to: 1; duration: WinTheme.normal } }
             remove: Transition { NumberAnimation { property: "scale"; to: 0.8; duration: WinTheme.fast } NumberAnimation { property: "opacity"; to: 0; duration: WinTheme.fast } }
+
+            WheelHandler {
+                onWheel: (event) => {
+                    if (event.angleDelta.y < 0) panel.tilePage = Math.min(panel.tilePages - 1, panel.tilePage + 1)
+                    else if (event.angleDelta.y > 0) panel.tilePage = Math.max(0, panel.tilePage - 1)
+                }
+            }
 
             delegate: DropArea {
                 id: cell
@@ -345,6 +402,7 @@ WinCard {
                         moreTooltip: cell.def.moreTooltip
                         checked: cell.def.checked
                         hasMore: cell.def.hasMore
+                        navigate: cell.def.navigate
                         editMode: panel.editMode
                         enabled: cell.usable || panel.editMode
                         onToggled: cell.def.toggled()
@@ -365,12 +423,28 @@ WinCard {
             }
         }
 
+        Pager {
+            x: WinTheme.flyoutWidth - 19
+            anchors.verticalCenter: grid.verticalCenter
+            pages: panel.tilePages
+            current: panel.tilePage
+            onPageRequested: (p) => panel.tilePage = p
+        }
+
+        Rectangle {   // divider between tiles and sliders
+            x: 0
+            y: mainPage.dividerY
+            width: parent.width
+            height: 1
+            color: WinTheme.divider
+        }
+
         Column {
             id: sliders
-            x: 10
-            y: grid.y + grid.height + 10
-            width: parent.width - 20
-            spacing: 20
+            x: 0
+            y: mainPage.dividerY + 1 + 18
+            width: parent.width
+            spacing: 12
 
             SliderRow {
                 width: parent.width
@@ -390,6 +464,7 @@ WinCard {
                 sliderName: "Volume"
                 value: panel.backend.volume
                 hasMore: true
+                moreGlyph: "sound-output"
                 moreTooltip: "Select a sound output"
                 onMoved: (value) => panel.backend.setVolume(value)
                 onIconClicked: panel.backend.toggleMute()

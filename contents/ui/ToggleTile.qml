@@ -14,6 +14,7 @@ Item {
     property string moreTooltip
     property bool checked: false
     property bool hasMore: false
+    property bool navigate: false     // whole tile opens a page
     property bool editMode: false
 
     signal toggled()
@@ -23,7 +24,7 @@ Item {
     implicitWidth: WinTheme.tileWidth
     implicitHeight: WinTheme.tileRowHeight
 
-    readonly property bool on: checked && enabled
+    readonly property bool on: checked && enabled && !navigate
     readonly property color fg: !enabled ? WinTheme.textDisabled : on ? WinTheme.textOnAccent : WinTheme.text
 
     function fill(area) {
@@ -42,8 +43,8 @@ Item {
     Accessible.description: tooltip
     Accessible.checked: checked
     Accessible.onPressAction: tile.toggled()
-    Keys.onSpacePressed: tile.toggled()
-    Keys.onReturnPressed: tile.toggled()
+    Keys.onSpacePressed: navigate ? tile.moreClicked() : tile.toggled()
+    Keys.onReturnPressed: navigate ? tile.moreClicked() : tile.toggled()
     Keys.onRightPressed: (event) => { if (hasMore) tile.moreClicked(); else event.accepted = false }
 
     Rectangle {
@@ -83,7 +84,7 @@ Item {
             height: parent.height
             hoverEnabled: true
             enabled: !tile.editMode
-            onClicked: tile.toggled()
+            onClicked: tile.navigate ? tile.moreClicked() : tile.toggled()
 
             Rectangle {
                 anchors.fill: parent
@@ -99,13 +100,25 @@ Item {
                 color: tile.enabled && (mainArea.containsMouse || mainArea.pressed) ? tile.fill(mainArea) : "transparent"
                 Behavior on color { ColorAnimation { duration: WinTheme.fast } }
             }
-            FluentIcon {
+            Row {
                 anchors.centerIn: parent
-                glyph: tile.glyph
-                color: mainArea.pressed && !tile.on ? WinTheme.textSecondary : tile.fg
+                spacing: 8
                 scale: mainArea.pressed ? 0.9 : 1
                 Behavior on scale { NumberAnimation { duration: WinTheme.fast } }
-                Behavior on color { ColorAnimation { duration: WinTheme.normal } }
+                FluentIcon {
+                    anchors.verticalCenter: parent.verticalCenter
+                    glyph: tile.glyph
+                    color: mainArea.pressed && !tile.on ? WinTheme.textSecondary : tile.fg
+                    Behavior on color { ColorAnimation { duration: WinTheme.normal } }
+                }
+                FluentIcon {   // navigate tiles: chevron next to the icon
+                    visible: tile.navigate
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 12
+                    height: 12
+                    glyph: "chevron-right"
+                    color: tile.fg
+                }
             }
         }
 
@@ -158,6 +171,9 @@ Item {
         horizontalAlignment: Text.AlignHCenter
         text: tile.label
         font.pixelSize: WinTheme.caption
+        wrapMode: Text.Wrap
+        maximumLineCount: 2
+        verticalAlignment: Text.AlignTop
         color: tile.enabled ? WinTheme.text : WinTheme.textDisabled
     }
 

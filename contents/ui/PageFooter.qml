@@ -7,6 +7,7 @@ Item {
     id: footer
 
     property string text
+    default property alias extras: rightRow.data
     signal clicked()
 
     implicitHeight: WinTheme.footerHeight
@@ -37,5 +38,11 @@ Item {
             cursorShape: Qt.PointingHandCursor
             onClicked: footer.clicked()
         }
+    }
+
+    Row {
+        id: rightRow
+        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+        spacing: 4
     }
 }

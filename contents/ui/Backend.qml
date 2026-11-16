@@ -51,10 +51,41 @@ Item {
     property var btDevices: []               // paired: [{ mac, name, connected }]
     property string btBusyMac: ""
     property string btError: ""
+    property bool btRefreshing: false
 
     // Airplane mode
     readonly property bool airplaneAvailable: has("rfkill") || has("nmcli")
     property bool airplaneMode: false
+
+    // Internet reachability as NetworkManager sees it: full | limited | portal | none | unknown
+    property string connectivity: "unknown"
+
+    // Energy saver (power-profiles-daemon)
+    readonly property bool energySaverAvailable: has("powerprofilesctl") && powerProfile !== ""
+    property string powerProfile: ""
+    property string lastNonSaverProfile: "balanced"
+    readonly property bool energySaver: powerProfile === "power-saver"
+
+    // Mobile hotspot (NetworkManager "Hotspot" connection)
+    readonly property bool hotspotAvailable: has("nmcli") && wifiAvailable
+    property bool hotspotOn: false
+    property string hotspotSsid: ""
+    property string hotspotPassword: ""
+    property bool hotspotBusy: false
+    property string hotspotError: ""
+
+    // Accessibility
+    readonly property bool magnifierAvailable: qdbus !== ""
+    property bool magnifierOn: false          // KWin can't report the zoom level; this is what we set
+    readonly property bool narratorAvailable: has("orca")
+    property bool narratorOn: false
+    property bool colorFilterAvailable: false
+    property bool colorFilterOn: false
+
+    // Project (display layout)
+    readonly property bool displayModesAvailable: qdbus !== ""
+    property string displayMode: ""           // pc | duplicate | extend | second | ""
+    property int displayCount: 0
 
     // Night light
     readonly property bool nightLightAvailable: qdbus !== "" && has("kwriteconfig6")
@@ -217,7 +248,7 @@ Item {
     Component.onCompleted: probe()
 
     function probe() {
-        sh('for c in nmcli bluetoothctl rfkill wpctl kwriteconfig6 kreadconfig6 kcmshell6 systemsettings timeout; do '
+        sh('for c in nmcli bluetoothctl rfkill wpctl kwriteconfig6 kreadconfig6 kcmshell6 systemsettings timeout powerprofilesctl kscreen-doctor orca pgrep pkill setsid; do '
            + 'command -v $c >/dev/null 2>&1 && echo "tool:$c"; done; '
            + 'for c in qdbus6 qdbus-qt6 qdbus; do if command -v $c >/dev/null 2>&1; then echo "qdbus:$c"; break; fi; done',
            (out) => {
@@ -246,7 +277,16 @@ Item {
         switch (name) {
         case "wifi":
             return has("nmcli") ? "nmcli -t -f WIFI radio 2>/dev/null; nmcli -t -f TYPE,STATE,CONNECTION device 2>/dev/null; "
-                                  + 'echo "--"; nmcli -t -f IN-USE,SIGNAL device wifi list --rescan no 2>/dev/null' : ""
+                                  + 'echo "--"; nmcli -t -f IN-USE,SIGNAL device wifi list --rescan no 2>/dev/null; '
+                                  + 'echo "=="; nmcli -t networking connectivity 2>/dev/null' : ""
+        case "power":
+            return has("powerprofilesctl") ? "powerprofilesctl get 2>/dev/null" : ""
+        case "hotspot":
+            return has("nmcli") ? "nmcli -t -f NAME,TYPE connection show --active 2>/dev/null" : ""
+        case "a11y":
+            return (has("pgrep") ? "pgrep -x orca >/dev/null && echo orca:1 || echo orca:0; " : "")
+                 + (qdbus !== "" ? 'echo "cbs:$(' + dbus("org.kde.KWin /Effects org.kde.kwin.Effects.isEffectSupported colorblindnesscorrection 2>/dev/null") + ')"; '
+                                 + 'echo "cbl:$(' + dbus("org.kde.KWin /Effects org.kde.kwin.Effects.isEffectLoaded colorblindnesscorrection 2>/dev/null") + ')"' : "")
         case "bt":
             return has("bluetoothctl") ? btctl + 'show 2>/dev/null | grep -m1 "Powered:"; echo "--"; ' + btctl + "devices Connected 2>/dev/null" : ""
         case "airplane":
@@ -278,7 +318,7 @@ Item {
                 return
             }
             pollRunning = true
-            names = ["wifi", "bt", "airplane", "night", "brightness", "volume", "battery"]
+            names = ["wifi", "bt", "airplane", "night", "brightness", "volume", "battery", "power", "hotspot", "a11y"]
         }
         let script = ""
         for (const n of names) {
@@ -368,7 +408,9 @@ Item {
                 }
             }
             let signal = -1
-            for (const l of (sep >= 0 ? lines.slice(sep + 1) : [])) {
+            const conSep = lines.indexOf("==")
+            connectivity = conSep >= 0 && conSep + 1 < lines.length ? lines[conSep + 1].trim() : "unknown"
+            for (const l of (sep >= 0 ? lines.slice(sep + 1, conSep >= 0 ? conSep : undefined) : [])) {
                 const f = nmSplit(l, 2)
                 if (f[0].trim() === "*") {
                     signal = parseInt(f[1])
@@ -410,6 +452,35 @@ Item {
             }
             break
         }
+        case "power": {
+            const prof = lines.length > 0 ? lines[0].trim() : ""
+            powerProfile = /^(power-saver|balanced|performance)$/.test(prof) ? prof : ""
+            if (powerProfile !== "" && powerProfile !== "power-saver") {
+                lastNonSaverProfile = powerProfile
+            }
+            break
+        }
+        case "hotspot": {
+            let on = false
+            for (const l of lines) {
+                const f = nmSplit(l, 2)
+                if (f[0] === "Hotspot" && f[1] === "802-11-wireless") {
+                    on = true
+                }
+            }
+            if (on && !hotspotOn) {
+                readHotspotSecret()
+            }
+            hotspotOn = on
+            break
+        }
+        case "a11y":
+            for (const l of lines) {
+                if (l.startsWith("orca:")) narratorOn = l.substring(5).trim() === "1"
+                else if (l.startsWith("cbs:")) colorFilterAvailable = l.substring(4).trim() === "true"
+                else if (l.startsWith("cbl:")) colorFilterOn = l.substring(4).trim() === "true"
+            }
+            break
         case "night":
             nightLight = lines.length > 0 && lines[0].trim() === "true"
             break
@@ -546,7 +617,8 @@ Item {
 
     // Returns true if a password is needed first (page then prompts and calls
     // again with the password).
-    function connectWifi(net, password) {
+    function connectWifi(net, password, autoconnect) {
+        wifiAutoconnect = autoconnect !== false
         wifiError = ""
         if (net.inUse) {
             wifiBusySsid = net.ssid
@@ -573,8 +645,12 @@ Item {
         return false
     }
 
+    property bool wifiAutoconnect: true
     function wifiActionDone(net, code, out, usedPassword) {
         wifiBusySsid = ""
+        if (code === 0 && !net.inUse && !wifiAutoconnect) {
+            sh("nmcli connection modify id " + q(net.ssid) + " connection.autoconnect no")
+        }
         if (code === 0) {
             wifiNeedsPassword = ""
         } else {
@@ -596,19 +672,32 @@ Item {
         if (!has("bluetoothctl")) {
             return
         }
-        sh(btctl + 'devices Paired 2>/dev/null; echo "--"; ' + btctl + "devices Connected 2>/dev/null", (out) => {
+        btRefreshing = true
+        // Paired devices, "--", connected devices, "==", then "bat:<mac>:<percent>" for connected devices reporting a battery.
+        sh(btctl + 'devices Paired 2>/dev/null; echo "--"; ' + btctl + 'devices Connected 2>/dev/null; echo "=="; '
+           + btctl + 'devices Connected 2>/dev/null | while read -r _ mac _; do '
+           + 'p=$(' + btctl + 'info "$mac" 2>/dev/null | sed -n "s/.*Battery Percentage:.*(\\([0-9]*\\)).*/\\1/p" | head -n1); '
+           + '[ -n "$p" ] && echo "bat:$mac:$p"; done', (out) => {
             const lines = out.split("\n")
             const sep = lines.indexOf("--")
+            const sep2 = lines.indexOf("==")
             const paired = parseBtDeviceLines(sep >= 0 ? lines.slice(0, sep) : lines)
             const connected = {}
-            for (const d of parseBtDeviceLines(sep >= 0 ? lines.slice(sep + 1) : [])) {
+            for (const d of parseBtDeviceLines(sep >= 0 ? lines.slice(sep + 1, sep2 >= 0 ? sep2 : undefined) : [])) {
                 connected[d.mac] = true
+            }
+            const battery = {}
+            for (const l of (sep2 >= 0 ? lines.slice(sep2 + 1) : [])) {
+                const m = l.match(/^bat:([0-9A-Fa-f:]{17}):(\d+)$/)
+                if (m) battery[m[1]] = parseInt(m[2])
             }
             for (const d of paired) {
                 d.connected = connected[d.mac] === true
+                d.battery = battery[d.mac] !== undefined ? battery[d.mac] : -1
             }
             paired.sort((a, b) => (b.connected - a.connected) || a.name.localeCompare(b.name))
             btDevices = paired
+            btRefreshing = false
         })
     }
 
@@ -657,6 +746,98 @@ Item {
         if (/^[a-z0-9_]+$/.test(name)) {
             sh("kcmshell6 " + name + " >/dev/null 2>&1 &")
         }
+    }
+
+    // ---- actions: energy saver / hotspot ------------------------------------
+    function setEnergySaver(on) {
+        acted()
+        const target = on ? "power-saver" : (lastNonSaverProfile || "balanced")
+        powerProfile = target
+        sh("powerprofilesctl set " + target, refreshAfterAction)
+    }
+
+    function setHotspot(on) {
+        if (hotspotBusy) {
+            return
+        }
+        acted()
+        hotspotBusy = true
+        hotspotError = ""
+        const cmd = on ? "nmcli device wifi hotspot 2>&1" : "nmcli connection down id Hotspot 2>&1"
+        sh(cmd, (out, code) => {
+            hotspotBusy = false
+            if (code !== 0) {
+                hotspotError = out.trim().split("\n").pop() || "nmcli failed"
+            } else {
+                hotspotOn = on
+                if (on) readHotspotSecret()
+            }
+            refreshAfterAction()
+        })
+    }
+    function readHotspotSecret() {
+        sh("nmcli -s -g 802-11-wireless.ssid,802-11-wireless-security.psk connection show Hotspot 2>/dev/null", (out) => {
+            const l = out.split("\n")
+            hotspotSsid = (l[0] || "").trim()
+            hotspotPassword = (l[1] || "").trim()
+        })
+    }
+
+    // ---- actions: accessibility ---------------------------------------------
+    readonly property string kwinEffects: "org.kde.KWin /Effects org.kde.kwin.Effects."
+    readonly property string kwinShortcut: "org.kde.kglobalaccel /component/kwin org.kde.kglobalaccel.Component.invokeShortcut "
+    function setMagnifier(on) {
+        magnifierOn = on
+        // KWin Zoom effect: zoom in four steps (about 200%, Windows' default) or back to 100%.
+        sh(dbus(kwinEffects + "loadEffect zoom >/dev/null 2>&1") + "; "
+           + (on ? "for i in 1 2 3 4; do " + dbus(kwinShortcut + "view_zoom_in >/dev/null 2>&1") + "; done"
+                 : dbus(kwinShortcut + "view_actual_size >/dev/null 2>&1")))
+    }
+    function setNarrator(on) {
+        acted()
+        narratorOn = on
+        sh(on ? "setsid orca --replace >/dev/null 2>&1 &" : "pkill -x orca", () => followUp.restart())
+    }
+    function setColorFilter(on) {
+        acted()
+        colorFilterOn = on
+        sh(dbus(kwinEffects + (on ? "loadEffect" : "unloadEffect") + " colorblindnesscorrection >/dev/null 2>&1")
+           + (has("kwriteconfig6") ? "; kwriteconfig6 --file kwinrc --group Plugins --key colorblindnesscorrectionEnabled " + (on ? "true" : "false") : ""),
+           refreshAfterAction)
+    }
+
+    // ---- actions: project (display layout) ------------------------------------
+    function refreshDisplay() {
+        if (!has("kscreen-doctor")) {
+            return
+        }
+        sh("kscreen-doctor -j 2>/dev/null", (out) => {
+            let data
+            try { data = JSON.parse(out) } catch (e) { displayMode = ""; return }
+            const outs = (data.outputs || []).filter(o => o.connected)
+            const on = outs.filter(o => o.enabled)
+            const internal = o => /^(eDP|LVDS|DSI)/i.test(String(o.name))
+            displayCount = outs.length
+            if (outs.length < 2) {
+                displayMode = "pc"
+            } else if (on.length === 1) {
+                displayMode = internal(on[0]) ? "pc" : "second"
+            } else {
+                const same = on.every(o => o.pos && on[0].pos && o.pos.x === on[0].pos.x && o.pos.y === on[0].pos.y)
+                displayMode = same ? "duplicate" : "extend"
+            }
+        })
+    }
+    function setDisplayMode(mode) {
+        const preset = { pc: "SwitchToInternal", duplicate: "Clone", extend: "ExtendRight", second: "SwitchToExternal" }[mode]
+        if (!preset) {
+            return
+        }
+        displayMode = mode
+        // kscreen's daemon applies the same presets as the Meta+P OSD; fall back to the OSD itself.
+        sh(dbus("org.kde.kded6 /modules/kscreen org.kde.KScreen.applyLayoutPreset " + preset + " >/dev/null 2>&1")
+           + " || " + dbus("org.kde.kscreen.osdService /org/kde/kscreen/osdService org.kde.kscreen.osdService.showActionSelector >/dev/null 2>&1"),
+           () => Qt.callLater(refreshDisplay))
     }
 
     // ---- actions: brightness ------------------------------------------------

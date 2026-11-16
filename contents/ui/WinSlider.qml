@@ -97,9 +97,11 @@ Item {
         onWheel: (wheel) => slider.step(wheel.angleDelta.y > 0 ? 0.02 : -0.02)
     }
 
-    // Value bubble above the thumb while dragging (as Windows shows).
+    readonly property bool thumbHovered: area.containsMouse && Math.abs(area.mouseX - (thumb.x + thumb.width / 2)) <= thumb.width / 2 + 2
+
+    // Value bubble above the thumb while dragging or hovering it (as Windows shows).
     Rectangle {
-        visible: slider.pressed
+        visible: slider.pressed || slider.thumbHovered
         width: bubble.implicitWidth + 16
         height: 30
         radius: WinTheme.controlRadius
@@ -112,7 +114,7 @@ Item {
             id: bubble
             anchors.centerIn: parent
             text: Math.round(slider.visualValue * 100)
-            font.pixelSize: WinTheme.caption
+            font.pixelSize: WinTheme.body
         }
     }
 }

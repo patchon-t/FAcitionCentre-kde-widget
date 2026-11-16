@@ -1,6 +1,6 @@
 /*
- * Bluetooth sub-page, Windows 11 style: paired devices; click to expand,
- * then Connect / Disconnect.
+ * Bluetooth sub-page, Windows 11 24H2 style: "Your devices" with status and
+ * battery level; click a device to expand it, then Connect / Disconnect.
  */
 import QtQuick
 import QtQuick.Layouts
@@ -18,11 +18,14 @@ Item {
     function deviceGlyph(name) {
         const n = String(name).toLowerCase()
         if (/head|bud|ear|airpod|wh-|wf-|jabra|bose|sony|beats|qc\d/.test(n)) return "headphones"
-        if (/mouse|mx (master|anywhere)|trackpad/.test(n)) return "mouse"
+        if (/mouse|mx (master|anywhere)|trackpad|logi m|m\d{3}\b/.test(n)) return "mouse"
         if (/keyboard|keys|k\d{3}/.test(n)) return "keyboard"
-        if (/phone|pixel|galaxy|iphone|redmi|oneplus|xiaomi/.test(n)) return "phone"
-        if (/speaker|soundbar|jbl|boom/.test(n)) return "speaker-device"
+        if (/phone|pixel|galaxy|iphone|redmi|oneplus|xiaomi|oppo|vivo|reno/.test(n)) return "phone"
+        if (/speaker|soundbar|jbl|boom|音响|音响/.test(n)) return "speaker-device"
         return "device"
+    }
+    function batteryGlyph(p) {
+        return "battery-" + Math.max(0, Math.min(10, Math.round(p / 10)))
     }
 
     Timer {
@@ -40,6 +43,7 @@ Item {
         PageHeader {
             Layout.fillWidth: true
             title: "Bluetooth"
+            busy: page.backend.btRefreshing && page.backend.btDevices.length === 0
             onBack: page.back()
             WinToggleSwitch {
                 checked: page.backend.btEnabled
@@ -53,7 +57,7 @@ Item {
             Layout.fillWidth: true
             Layout.leftMargin: 24
             Layout.rightMargin: 24
-            Layout.bottomMargin: 8
+            Layout.topMargin: 4
             visible: page.backend.btError !== ""
             text: page.backend.btError
             color: WinTheme.critical
@@ -65,8 +69,8 @@ Item {
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: 4
+            Layout.rightMargin: 4
 
             ListView {
                 id: list
@@ -77,6 +81,14 @@ Item {
                 model: page.backend.btEnabled ? page.backend.btDevices : []
 
                 HoverHandler { id: listHover }
+
+                header: WinText {
+                    visible: list.count > 0
+                    height: visible ? 40 : 0
+                    leftPadding: 16
+                    text: "Your devices"
+                    font.weight: Font.DemiBold
+                }
 
                 WinText {
                     anchors.centerIn: parent
@@ -98,11 +110,13 @@ Item {
                     width: ListView.view.width
                     glyph: page.deviceGlyph(modelData.name)
                     title: modelData.name
-                    subtitle: busy ? (modelData.connected ? "Disconnecting…" : "Connecting…")
-                            : modelData.connected ? "Connected" : "Paired"
+                    subtitle: busy ? (modelData.connected ? "Disconnecting" : "Connecting")
+                            : modelData.connected ? "Connected" : "Not connected"
+                    trailingText: modelData.battery >= 0 ? modelData.battery + "%" : ""
+                    trailingGlyph: modelData.battery >= 0 ? page.batteryGlyph(modelData.battery) : ""
                     busy: page.backend.btBusyMac === modelData.mac
                     expanded: page.selectedMac === modelData.mac
-                    tooltip: modelData.name + " (" + modelData.mac + ")"
+                    tooltip: modelData.name + "\n" + modelData.mac
                     onClicked: page.selectedMac = expanded ? "" : modelData.mac
 
                     RowLayout {
@@ -111,7 +125,7 @@ Item {
                         WinButton {
                             accent: !entry.modelData.connected
                             enabled: !entry.busy
-                            implicitWidth: 120
+                            Layout.preferredWidth: 148
                             text: entry.modelData.connected ? "Disconnect" : "Connect"
                             onClicked: page.backend.toggleBtDevice(entry.modelData)
                         }

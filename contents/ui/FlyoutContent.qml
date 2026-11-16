@@ -1,7 +1,12 @@
 /*
  * Everything inside the flyout window: optional media card + quick
- * settings card, floating WinTheme.flyoutGap above the taskbar, with the
- * Windows 11 open (slide up + fade) and close (slide down + fade) motion.
+ * settings card, floating WinTheme.flyoutGap above the taskbar.
+ *
+ * Motion measured from Windows 11 24H2: the panel slides up its full height
+ * from behind the taskbar edge (no fade), fast at first and settling over
+ * ~330 ms; closing drops it straight back down in ~170 ms, accelerating.
+ * The window clips at its bottom edge, which sits on the panel, so the card
+ * appears to come out from behind the taskbar.
  *
  * The window keeps a fixed size; the cards sit at its bottom and the
  * transparent area above them closes the flyout when clicked.
@@ -25,6 +30,8 @@ Item {
 
     implicitWidth: WinTheme.flyoutWidth + 2 * gap
     implicitHeight: gap + 176 + 12 + 448 + gap
+    clip: true
+    readonly property real hiddenOffset: cards.height + gap + 2
 
     focus: true
     Keys.onEscapePressed: if (!panel.goBack()) close()
@@ -62,8 +69,8 @@ Item {
         x: content.gap
         anchors { bottom: parent.bottom; bottomMargin: content.gap }
         spacing: 12
-        opacity: 0
-        transform: Translate { id: slide; y: 0 }
+        // Starts hidden; set imperatively so later height changes (sub-pages) don't re-hide it.
+        transform: Translate { id: slide; y: 10000 }
 
         MediaCard {
             id: media
@@ -84,19 +91,13 @@ Item {
         }
     }
 
-    // Windows 11 flyout entrance: rises ~80 px with a decelerating curve while fading in.
     ParallelAnimation {
         id: openAnim
-        NumberAnimation { target: slide; property: "y"; from: 80; to: 0; duration: 333; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate }
-        NumberAnimation { target: cards; property: "opacity"; from: 0; to: 1; duration: WinTheme.normal; easing.type: Easing.Linear }
+        NumberAnimation { target: slide; property: "y"; from: content.hiddenOffset; to: 0; duration: 333; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.decelerate }
     }
-    // Exit: drops back towards the taskbar and fades, quicker, accelerating.
     SequentialAnimation {
         id: closeAnim
-        ParallelAnimation {
-            NumberAnimation { target: slide; property: "y"; to: 60; duration: WinTheme.normal; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.accelerate }
-            NumberAnimation { target: cards; property: "opacity"; to: 0; duration: WinTheme.normal; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.accelerate }
-        }
+        NumberAnimation { target: slide; property: "y"; to: content.hiddenOffset; duration: WinTheme.normal; easing.type: Easing.BezierSpline; easing.bezierCurve: WinTheme.accelerate }
         ScriptAction { script: content.closed() }
     }
 }
